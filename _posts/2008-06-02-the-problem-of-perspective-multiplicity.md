@@ -1,0 +1,31 @@
+---
+categories:
+- Eclipse
+date: '2008-06-02 00:00:51 '
+layout: post
+title: The Problem of Perspective Multiplicity
+wordpress_id: 236
+wordpress_path: /eclipse/the-problem-of-perspective-multiplicity
+---
+
+Some six years ago, I switched my primary IDE from NetBeans to Eclipse JDT (then 2.0).  At the time, I did this primarily because NetBeans was too much of a resource hog for my pathetic development machine, but I quickly learned to appreciate the power of the Eclipse development environment.  NetBeans has since made great strides of course, but at the time, Eclipse was lightyears beyond it in both features and polish.
+
+One of the more interesting features offered by Eclipse was the concept of a "perspective", a collection of views in a specific layout conducive to performing a specific series of tasks.  The major upshot of this was instead of the debugger views popping in and out, they simply remained hidden in a separate perspective, ready to restore to your customized configuration as necessary.  This innovation was also present in other areas, such as the CVS Team view and the Update Manager (yes, the Eclipse update system was once a set of views and editors).
+
+You could switch between these perspectives manually of course, but most of the time Eclipse was able to just detect which perspective you needed and make the switch automatically.  If you were to launch an application in debug mode for example, the "Debug" perspective would be opened automatically, bringing useful views to the fore.  Once you were done debugging, it was easy to switch back to the "Java" perspective for more streamlined editing.  It was a good system, and it worked well.
+
+Unfortunately, times have changed.  Don't get me wrong, I still love having all my debug views and layout saved for me in a discrete section of the app, ready to access on a moment's notice.  But Eclipse is no longer the single-purpose application it once was.  Yes, I know that it has always been billed as "an open tool platform for everything and nothing in particular", but back in the day (and especially before OSGi) most people had yet to realize this.  The only language supported by Eclipse on any serious level was Java, thus the perspective system worked extremely well for organizing IDE views.  Now, Eclipse serves as the foundation for IDE frameworks supporting dozens of different languages, requiring an equal (if not greater) number of perspectives.
+
+ ![image](/assets/images/blog/wp-content/uploads/2008/06/image.png)
+
+Even in this screenshot, I'm still hiding easily 70% of the perspectives available to Eclipse.  With all of these different view collections and configurations, it's no wonder that people often find Eclipse to be confusing compared to other IDEs.  In NetBeans (for example) you can work with as many languages as you want within a single perspective/layout/configuration.  The outline shows the relevant information for whatever file you have open, and the project explorer view is fully integrated with each language, showing all available projects and their associated structure.  Most importantly, this view is able to show project _logical_ structure as dictated by the support module for that language (e.g. src/, test/, etc).
+
+Effectively, other IDEs have evolved a single "Development" perspective, one which shows a generic set of views common to all languages.  Unlike Eclipse, which requires switching to the Ruby perspective or the C/C++ perspective to get the appropriate project viewer, NetBeans has one project viewer which is extensible by any module.  Eclipse has some of this with the Package Explorer, but some plugins like DLTK don't properly integrate and so the view isn't as streamlined.  Additionally, some functions like "Open Type" don't work appropriately unless in the corresponding perspective for a given language.
+
+Yes, I am aware that I could simply open any views I want within a single perspective, but that's not what I'm looking for.  I don't _want_ to open five different views for navigating project files, I want to have one master view which shows me everything through the filter of whatever language is relevant to the project.  Project Explorer comes close, but it fails to handle the tighter integration (such as the "Referenced Libraries" in JDT or script outlines for DLTK).
+
+Theoretically, Eclipse only needs four or five perspectives for the average developer working with any number of languages: Develop, Debug, Test, Repositories, Synchronize.  Obviously, more perspectives would be needed for functionality which does not conform to normal development conventions (such as "Planning" or even "Email"), but I think that these core perspectives could provide a consistent, generic framework to which any language IDE could conform.  We can already see something similar happening with the Debug perspective, which is used by Java, Ruby, Scala and C/C++ alike.
+
+What is needed is a common super-framework to be extended by actual language implementations such as JDT, CDT and the like (similar to what DLTK provides but more encompassing).  This framework should provide a common platform with features such as project viewing, outline, documentation, type hierarchy, call hierarchy, open type, etc.  This platform would then be specialized by the relevant IDE and the _same views_ would allow extension to fit the needs of the language in question.  This already happens with the Outline view, but it needs to occur with other common functions as enumerated.  Views which are not common to different languages (such as Ant Build or Make Targets) would of course not be contained within this super-framework, but would be separate views as they are now.  This framework would allow a developer to use a single set of views for any language, never requiring a workflow-disrupting change of perspective.
+
+The building blocks are all in place, and such an effort would still be in line with the Eclipse philosophy of total extensibility, it's merely a question of implementation and opinion.  The implementation is simple, as I said, most of the functionality is already available (often redundantly) in any one of the many IDE packages.  The bigger challenge is to convince those who have the power to make the decision.  Eclipse 4.0 is coming, it should be an interesting road to follow.

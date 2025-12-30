@@ -1,0 +1,25 @@
+---
+categories:
+- Java
+date: '2007-10-11 00:19:20 '
+layout: post
+title: Is a Separate Text Search Engine a Bad Idea?
+wordpress_id: 137
+wordpress_path: /java/is-a-separate-text-search-engine-a-bad-idea
+---
+
+I was reading [this blog entry](<http://www.pervasivecode.com/blog/2007/10/04/activerecord-the-visual-basic-of-object-relational-mappers>) a few days ago, and it started me thinking about full-text searching.  That wasn't the main topic of the post, but I think the little side-trek into the field was interesting enough to merit some thought.  Right smack in the middle, Jamie goes on a bit of a rant about the pain of what is effectively two, separate databases (for example, MySQL and Lucene):
+
+> A fellow Rails developer asked me in all seriousness why I wasn’t abandoning the full text search functionality of TSearch2 and just using a completely separate, redundant database product designed exclusively for full text search. Seriously, that is considered the “easy” approach: one database for full text search, and another for ACID/OLTP/CRUD. Honestly if I were going to go down that road I would try hard to just abandon the SQL RDMBS and put everything in the other database, since Lucene and its imitators are capable of far more than just find-text-in-document queries. The pain of duplicating everything, using two query languages, two document representations (in addition to the object representation in Ruby) and writing application-tier query correlation makes the double-DB approach seem very unwise.
+
+There is some validity to this thought.  After all, duplication in software usually means you're doing something wrong - or at least, there could be an easier way.  Even ignoring this precept, it's just common sense that keeping data synchronized concurrently between two data sources as complex as a relational database and a full-text index is not an easy task.  Granted, some ORMs can handle this task for you (actually, I can only think of Hibernate and ActiveObjects having this feature), but the principle is the same.  And even if everything is neatly and auto-magically synced, there's always a danger of something getting out of place, and then you're stuck with a transient stale data issue that's difficult to track down.
+
+The author of the post mentions that he favors the full-text search capabilities of PostgreSQL, the popular open-source database and competitor to MySQL.  This does have the advantage that you're putting all the data in one place, handling everything with a single query language (SQL), and reducing the technologies your software depends upon.  This inarguably makes things a whole lot easier.
+
+The main problem as I see it is this is putting a ton of unnecessary strain on the database.  In most modern server-side applications, the bottleneck is in the database (usually caused by too much badly written SQL).  There are whole mountains of documentation which offers suggestions on how to alleviate this problem.  Indexes, database clustering and a carefully chosen ORM can go a long way.  Unfortunately, tacking on full-text indexing seems like a step in the wrong direction.
+
+Lucene is _very_ good at what it does.  It's indexing and storage performance is second to none.  In fact, it's so fast that a lot of companies use it as a quick-and-dirty storage dumping ground for raw data, knowing that it will be much faster and more scalable than a relational database.  Why not take advantage of this incredible power and take one more item off of your database's back?  This is all not to mention the fact that a Lucene index query is probably a lot faster than an SQL query grabbing data from a PostgreSQL full-text index.
+
+So what about the flip side of things?  Why not just put all the data into Lucene (or clone) and eschew relational databases altogether?  Well as I mentioned above, a lot of companies do this for simple things.  Lucene is fantastic at both scalability, and very fast indexing and querying of large blocks of text.  Where it begins to trip up is when you turn it loose on other data types.  Don't get me wrong, Lucene is an amazing piece of technology.  But just like PostgreSQL isn't a full-text search engine, Lucene isn't an RDBMS.  Each component of the infrastructure needs to handle what it's best at.  In fact, this is really a large aspect of scalability.  Ensuring that every technology is utilized to its fullest potential and no more is crucial to a high-volume application.
+
+Final verdict?  I think I'm sticking with MySQL and Lucene working in tandem, each doing what they do best.  ActiveObjects makes the synchronization almost completely transparent, so it's not like I'm loading myself down with unnecessary work from a code standpoint.  Seems like a good solution to me; and since most of the industry agrees, it's probably a safe bet for you too.
