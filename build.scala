@@ -5,10 +5,12 @@
 //> using javaOpt --enable-native-access=ALL-UNNAMED
 
 import cats.effect.*
+import cats.syntax.all.*
 import laika.api.*
 import laika.api.bundle.*
 import laika.format.*
 import laika.io.syntax.*
+import laika.io.model.*
 import laika.config.*
 import laika.api.config.Key
 import laika.ast.Path.Root
@@ -161,16 +163,46 @@ object Build extends IOApp:
         }
     }
 
-  // Extension bundle providing the @:blogIndex directive
+  // Extension bundle providing the @:blogIndex directive with pagination
   object BlogIndexDirective extends DirectiveRegistry:
     import BlockDirectives.dsl.*
     import laika.api.config.Key
 
-    case class BlogPost(title: String, date: LocalDate, path: laika.ast.Path)
+    private val months = Vector(
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    )
+
+    private val postsPerPage = 10
+
+    case class BlogPost(title: String, date: LocalDate, path: laika.ast.Path, firstParagraphs: Seq[Block])
+
+    // Extract enough text content from paragraphs (target ~150 chars minimum)
+    private def extractParagraphs(content: RootElement): Seq[Block] =
+      val paragraphs = content.collect { case p: Paragraph => p }
+      var charCount = 0
+      val minChars = 150
+      paragraphs.takeWhile { p =>
+        val take = charCount < minChars
+        charCount += p.extractText.length
+        take
+      }
+
+    private def calendarHtml(date: LocalDate): String =
+      val day = date.getDayOfMonth
+      val month = months(date.getMonthValue - 1)
+      val year = date.getYear
+      s"""<div class="calendar-widget">
+         |  <span class="calendar-day">$day</span>
+         |  <span class="calendar-month">$month</span>
+         |  <span class="calendar-year">$year</span>
+         |</div>""".stripMargin
 
     val blockDirectives = Seq(
       BlockDirectives.create("blogIndex") {
-        cursor.map { docCursor =>
+        (attribute(0).as[Int].optional, cursor).mapN { (pageOpt, docCursor) =>
+          val currentPage = pageOpt.getOrElse(1)
+
           // Find the blog subtree from root
           val blogPath = Root / "blog"
           val allDocs = docCursor.root.target.tree.allDocuments
@@ -182,31 +214,74 @@ object Build extends IOApp:
                 title <- doc.config.get[String](Key("laika", "title")).toOption
                 dateStr <- doc.config.get[String](Key("laika", "metadata", "date")).toOption
                 date <- scala.util.Try(LocalDate.parse(dateStr)).toOption
-              yield BlogPost(title, date, doc.path)
+              yield BlogPost(title, date, doc.path, extractParagraphs(doc.content))
             else
               None
+          }.toVector.sortBy(_.date)(Ordering[LocalDate].reverse)
+
+          val totalPosts = posts.size
+          val totalPages = (totalPosts + postsPerPage - 1) / postsPerPage
+
+          // Get posts for current page
+          val startIdx = (currentPage - 1) * postsPerPage
+          val pagePosts = posts.slice(startIdx, startIdx + postsPerPage)
+
+          // Generate post entries
+          val postBlocks = pagePosts.flatMap { post =>
+            val calendarBlock = RawContent(cats.data.NonEmptySet.of("html"), calendarHtml(post.date))
+
+            // Title as H2 with link, styled like post title
+            // Use absolute path from root
+            val linkPath = "/" + post.path.withSuffix("html").relative.toString.replace(".html", "/")
+            val titleHtml = s"""<h2 class="blog-index-title"><a href="$linkPath">${escapeHtml(post.title)}</a></h2>"""
+            val titleBlock = RawContent(cats.data.NonEmptySet.of("html"), titleHtml)
+
+            // Wrap content in article, with title first, then calendar + body text side by side
+            val wrapperStart = RawContent(cats.data.NonEmptySet.of("html"), """<article class="blog-index-entry">""")
+            val bodyStart = RawContent(cats.data.NonEmptySet.of("html"), """<div class="blog-index-body">""")
+            val textStart = RawContent(cats.data.NonEmptySet.of("html"), """<div class="blog-index-body-text">""")
+            val textEnd = RawContent(cats.data.NonEmptySet.of("html"), """</div>""")
+            val bodyEnd = RawContent(cats.data.NonEmptySet.of("html"), """</div></article>""")
+
+            // Append ellipsis link to the last paragraph
+            val ellipsisSpan = SpanLink.internal(post.path)(Text(" …")).withStyle("read-more")
+            val paragraphsWithEllipsis = if post.firstParagraphs.nonEmpty then
+              val lastPara = post.firstParagraphs.last match
+                case p: Paragraph => Paragraph(p.content :+ ellipsisSpan)
+                case other => other
+              post.firstParagraphs.init :+ lastPara
+            else
+              post.firstParagraphs
+
+            // Order: article -> title -> body -> calendar + text wrapper with paragraphs
+            Vector(wrapperStart, titleBlock, bodyStart, calendarBlock, textStart) ++ paragraphsWithEllipsis ++ Vector(textEnd, bodyEnd)
           }
 
-          // Group by year, sorted descending
-          val postsByYear = posts
-            .sortBy(_.date)(Ordering[LocalDate].reverse)
-            .groupBy(_.date.getYear)
-            .toList
-            .sortBy(-_._1)
+          // Generate pagination
+          val paginationHtml = if totalPages > 1 then
+            val pageLinks = (1 to totalPages).map { p =>
+              if p == currentPage then
+                s"""<span class="pagination-current">$p</span>"""
+              else
+                val href = if p == 1 then "/blog/" else s"/blog/page/$p/"
+                s"""<a href="$href" class="pagination-link">$p</a>"""
+            }.mkString(" ")
 
-          // Generate AST blocks
-          val blocks = postsByYear.flatMap { (year, yearPosts) =>
-            val yearHeader = RawContent(cats.data.NonEmptySet.of("html"), s"""<h2 id="year-$year">$year</h2>""")
-            val postBlocks = yearPosts.map { post =>
-              Paragraph(Seq(
-                SpanLink.internal(post.path)(post.title),
-                Text(s" — ${post.date}")
-              ))
-            }
-            yearHeader +: postBlocks
-          }
+            val prevLink = if currentPage > 1 then
+              val href = if currentPage == 2 then "/blog/" else s"/blog/page/${currentPage - 1}/"
+              s"""<a href="$href" class="pagination-prev">« Previous</a>"""
+            else ""
 
-          BlockSequence(blocks)
+            val nextLink = if currentPage < totalPages then
+              s"""<a href="/blog/page/${currentPage + 1}/" class="pagination-next">Next »</a>"""
+            else ""
+
+            s"""<nav class="pagination">$prevLink $pageLinks $nextLink</nav>"""
+          else ""
+
+          val paginationBlock = RawContent(cats.data.NonEmptySet.of("html"), paginationHtml)
+
+          BlockSequence(postBlocks :+ paginationBlock)
         }
       }
     )
@@ -214,6 +289,29 @@ object Build extends IOApp:
     val spanDirectives = Nil
     val templateDirectives = Nil
     val linkDirectives = Nil
+
+  // Count blog posts to determine pagination needs
+  def countBlogPosts(srcDir: java.nio.file.Path): Int =
+    import java.nio.file.{Files, Path as JPath}
+    import scala.jdk.CollectionConverters.*
+    val blogDir = srcDir.resolve("blog")
+    if Files.exists(blogDir) then
+      Files.walk(blogDir)
+        .iterator().asScala
+        .filter(p => Files.isRegularFile(p) && p.toString.endsWith(".md") && !p.getFileName.toString.equals("index.md"))
+        .size
+    else 0
+
+  // Generate virtual pagination pages content
+  def paginationPageContent(page: Int): String =
+    s"""{%
+       |laika.title = "Blog - Page $page"
+       |%}
+       |
+       |# Blog
+       |
+       |@:blogIndex($page)
+       |""".stripMargin
 
   val outputDir = "_site"
 
@@ -234,8 +332,20 @@ object Build extends IOApp:
     .build
 
   def build: IO[Unit] =
+    val postsPerPage = 10
+    val postCount = countBlogPosts(java.nio.file.Path.of("src"))
+    val totalPages = (postCount + postsPerPage - 1) / postsPerPage
+
+    // Generate virtual pagination pages (page 2 and onwards)
+    val baseInput = InputTree[IO].addDirectory("src")
+    val combinedInputs = (2 to totalPages).foldLeft(baseInput) { (tree, page) =>
+      val content = paginationPageContent(page)
+      val path = Root / "blog" / "page" / page.toString / "index.md"
+      tree.addString(content, path)
+    }
+
     Highlighter.resource.flatMap(transformer).use { t =>
-      t.fromDirectory("src")
+      t.fromInput(combinedInputs)
         .toDirectory(outputDir)
         .transform
     }.void
