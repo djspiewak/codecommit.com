@@ -16,9 +16,7 @@ import laika.io.syntax.*
 import laika.config.*
 import laika.ast.Path.Root
 import laika.ast.*
-import laika.helium.Helium
-import laika.helium.config.*
-import laika.theme.config.Color
+import laika.theme.Theme
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
@@ -188,6 +186,20 @@ laika.title = "Blog"
           .drain
       }
 
+  // Convert .html links to clean URLs (foo.html -> foo/) without changing path depth
+  def toCleanUrlLinks(content: String): String =
+    val pattern = """(href=")([^"]+\.html)(")""".r
+    pattern.replaceAllIn(content, m => {
+      val attr = m.group(1)
+      val path = m.group(2)
+      val quote = m.group(3)
+      if path.endsWith("index.html") then
+        java.util.regex.Matcher.quoteReplacement(m.matched)
+      else
+        val cleanPath = path.stripSuffix(".html") + "/"
+        java.util.regex.Matcher.quoteReplacement(s"$attr$cleanPath$quote")
+    })
+
   // Update relative paths in HTML to add an extra "../" prefix
   // since the file moves one directory deeper (foo.html -> foo/index.html)
   // Also convert .html links to clean URLs (foo.html -> foo/)
@@ -215,6 +227,7 @@ laika.title = "Blog"
 
   // Convert slug.html to slug/index.html for clean URLs
   def convertToCleanUrls(dir: Path): IO[Unit] =
+    // First, move non-index.html files to their own directories
     Files[IO].walk(dir)
       .filter(_.extName == ".html")
       .evalFilter(Files[IO].isRegularFile)
@@ -232,60 +245,23 @@ laika.title = "Blog"
         yield ()
       }
       .compile
+      .drain *>
+    // Then, update links in all remaining index.html files
+    Files[IO].walk(dir)
+      .filter(p => p.fileName.toString == "index.html")
+      .evalFilter(Files[IO].isRegularFile)
+      .evalMap { htmlFile =>
+        for
+          content <- Files[IO].readUtf8(htmlFile).compile.foldMonoid
+          fixedContent = toCleanUrlLinks(content)
+          _ <- Stream.emit(fixedContent).through(fs2.text.utf8.encode).through(Files[IO].writeAll(htmlFile)).compile.drain
+        yield ()
+      }
+      .compile
       .drain
 
-  // Define the original WordPress theme colors
-  val maroon = Color.hex("990033")
-  val maroonDark = Color.hex("660000")
-  val maroonLight = Color.hex("993154")
-  val cream = Color.hex("e1e1d3")
-  val creamLight = Color.hex("f6f6e2")
-  val beige = Color.hex("f5f5dc")
-  val grayBorder = Color.hex("c8c7b7")
-  val codeBg = Color.hex("f9f9f9")
-  val textColor = Color.hex("202020")
-
-  val helium = Helium.defaults
-    .site.metadata(
-      title = Some("Code Commit"),
-      authors = Seq("Daniel Spiewak"),
-      language = Some("en")
-    )
-    .site.topNavigationBar(
-      homeLink = ImageLink.internal(Root / "index.md", Image.internal(Root / "helium" / "code-commit.png", alt = Some("Code Commit"))),
-      navLinks = Seq(
-        TextLink.internal(Root / "about.md", "About"),
-        TextLink.internal(Root / "blog" / "index.md", "Blog")
-      )
-    )
-    .site.favIcons(
-      Favicon.internal(Root / "helium" / "favicon.ico", "32x32")
-    )
-    // Light mode colors - original WordPress theme maroon palette
-    .site.themeColors(
-      primary = maroon,
-      secondary = maroon,  // Use maroon for headers too
-      primaryMedium = maroon,
-      primaryLight = creamLight,  // Cream for sidebar backgrounds
-      text = textColor,
-      background = Color.hex("ffffff"),
-      bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
-    )
-    // Dark mode - same as light mode to effectively disable dark mode
-    .site.darkMode.themeColors(
-      primary = maroon,
-      secondary = maroon,
-      primaryMedium = maroon,
-      primaryLight = creamLight,
-      text = textColor,
-      background = Color.hex("ffffff"),
-      bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
-    )
-    .site.footer(
-      "© Daniel Spiewak"
-    )
-    .site.internalCSS(Root / "helium" / "site" / "codecommit.css")
-    .build
+  // Use a custom theme - templates and CSS are provided in src/templates and src/theme
+  val codeCommitTheme = Theme.empty
 
   // Use lenient message handling - don't fail on warnings/errors, don't render them
   val lenientFilters = MessageFilters.custom(MessageFilter.None, MessageFilter.None)
@@ -298,7 +274,7 @@ laika.title = "Blog"
     .withRawContent
     .withMessageFilters(lenientFilters)
     .parallel[IO]
-    .withTheme(helium)
+    .withTheme(codeCommitTheme)
     .build
 
   def build: IO[Unit] =
