@@ -2,13 +2,9 @@
 //> using dep org.typelevel::laika-io:1.3.2
 //> using dep org.typelevel::cats-effect:3.6.3
 //> using dep org.http4s::http4s-ember-server:0.23.33
-//> using dep co.fs2::fs2-io:3.12.2
 //> using javaOpt --enable-native-access=ALL-UNNAMED
 
 import cats.effect.*
-import cats.syntax.all.*
-import fs2.Stream
-import fs2.io.file.{Files, Path, CopyFlag, CopyFlags}
 import laika.api.*
 import laika.api.bundle.*
 import laika.format.*
@@ -24,7 +20,6 @@ import com.comcast.ip4s.*
 import java.time.LocalDate
 import java.lang.foreign.*
 import java.lang.invoke.MethodHandle
-import cats.data.NonEmptySet
 
 object Build extends IOApp:
 
@@ -115,76 +110,61 @@ object Build extends IOApp:
       }
     )
 
+  // Extension bundle providing the @:blogIndex directive
+  object BlogIndexDirective extends DirectiveRegistry:
+    import BlockDirectives.dsl.*
+    import laika.api.config.Key
+
+    case class BlogPost(title: String, date: LocalDate, path: laika.ast.Path)
+
+    val blockDirectives = Seq(
+      BlockDirectives.create("blogIndex") {
+        cursor.map { docCursor =>
+          // Find the blog subtree from root
+          val blogPath = Root / "blog"
+          val allDocs = docCursor.root.target.tree.allDocuments
+
+          // Extract posts from documents under /blog (excluding index pages)
+          val posts = allDocs.flatMap { doc =>
+            if doc.path.isSubPath(blogPath) && doc.path.basename != "index" then
+              for
+                title <- doc.config.get[String](Key("laika", "title")).toOption
+                dateStr <- doc.config.get[String](Key("laika", "metadata", "date")).toOption
+                date <- scala.util.Try(LocalDate.parse(dateStr)).toOption
+              yield BlogPost(title, date, doc.path)
+            else
+              None
+          }
+
+          // Group by year, sorted descending
+          val postsByYear = posts
+            .sortBy(_.date)(Ordering[LocalDate].reverse)
+            .groupBy(_.date.getYear)
+            .toList
+            .sortBy(-_._1)
+
+          // Generate AST blocks
+          val blocks = postsByYear.flatMap { (year, yearPosts) =>
+            val yearHeader = Header(2, Seq(Text(year.toString)))
+            val postBlocks = yearPosts.map { post =>
+              Paragraph(Seq(
+                SpanLink.internal(post.path)(post.title),
+                Text(s" — ${post.date}")
+              ))
+            }
+            yearHeader +: postBlocks
+          }
+
+          BlockSequence(blocks)
+        }
+      }
+    )
+
+    val spanDirectives = Nil
+    val templateDirectives = Nil
+    val linkDirectives = Nil
+
   val outputDir = "_site"
-  val srcDir = Path("src")
-  val blogDir = srcDir / "blog"
-
-  case class BlogPost(title: String, date: LocalDate, category: String, slug: String):
-    def url: String = s"/blog/$category/$slug"  // Absolute path, clean URL
-
-  // Parse a blog post file to extract metadata
-  def parsePost(file: Path, content: String): Option[BlogPost] =
-    val titlePattern = """laika\.title\s*=\s*"([^"]+)"""".r
-    val datePattern = """laika\.metadata\.date\s*=\s*"(\d{4}-\d{2}-\d{2})"""".r
-
-    for
-      titleMatch <- titlePattern.findFirstMatchIn(content)
-      dateMatch <- datePattern.findFirstMatchIn(content)
-    yield
-      val title = titleMatch.group(1)
-      val date = LocalDate.parse(dateMatch.group(1))
-      val category = file.parent.map(_.fileName.toString).getOrElse("")
-      val slug = file.fileName.toString.stripSuffix(".md")
-      BlogPost(title, date, category, slug)
-
-  // Scan blog directory for all posts
-  def scanPosts: Stream[IO, BlogPost] =
-    Files[IO].walk(blogDir)
-      .filter(_.extName == ".md")
-      .filterNot(_.fileName.toString == "index.md")
-      .evalFilter(Files[IO].isRegularFile)
-      .flatMap { path =>
-        Files[IO].readUtf8(path)
-          .foldMonoid
-          .map(content => parsePost(path, content))
-          .unNone
-      }
-
-  // Generate blog index markdown with raw HTML links
-  def generateBlogIndex(posts: List[BlogPost]): String =
-    val header = """{%
-laika.title = "Blog"
-%}
-
-# Blog
-
-"""
-    val postsByYear = posts.groupBy(_.date.getYear).toList.sortBy(-_._1)
-    val postList = postsByYear.map { (year, yearPosts) =>
-      val yearHeader = s"## $year\n\n"
-      val links = yearPosts.map { post =>
-        val escapedTitle = post.title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        s"""<p><a href="${post.url}">$escapedTitle</a> — ${post.date}</p>"""
-      }.mkString("\n")
-      yearHeader + links
-    }.mkString("\n\n")
-
-    header + postList + "\n"
-
-  // Write blog index before build
-  def writeBlogIndex: IO[Unit] =
-    scanPosts
-      .compile
-      .toList
-      .map(_.sortBy(_.date)(Ordering[LocalDate].reverse))
-      .map(generateBlogIndex)
-      .flatMap { indexContent =>
-        Stream.emit(indexContent)
-          .through(fs2.text.utf8.encode)
-          .through(Files[IO].writeAll(blogDir / "index.md"))
-          .compile
-          .drain
-      }
 
   // Use a custom theme - templates and CSS are provided in src/templates and src/theme
   val codeCommitTheme = Theme.empty
@@ -197,6 +177,7 @@ laika.title = "Blog"
     .to(HTML)
     .using(Markdown.GitHubFlavor)
     .using(SyntectHighlighting(highlighter))
+    .using(BlogIndexDirective)
     .using(PrettyURLs)
     .withRawContent
     .withMessageFilters(lenientFilters)
@@ -205,7 +186,6 @@ laika.title = "Blog"
     .build
 
   def build: IO[Unit] =
-    writeBlogIndex *>
     Highlighter.resource.flatMap(transformer).use { t =>
       t.fromDirectory("src")
         .toDirectory(outputDir)
