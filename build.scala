@@ -186,80 +186,6 @@ laika.title = "Blog"
           .drain
       }
 
-  // Convert .html links to clean URLs (foo.html -> foo/) without changing path depth
-  def toCleanUrlLinks(content: String): String =
-    val pattern = """(href=")([^"]+\.html)(")""".r
-    pattern.replaceAllIn(content, m => {
-      val attr = m.group(1)
-      val path = m.group(2)
-      val quote = m.group(3)
-      if path.endsWith("index.html") then
-        java.util.regex.Matcher.quoteReplacement(m.matched)
-      else
-        val cleanPath = path.stripSuffix(".html") + "/"
-        java.util.regex.Matcher.quoteReplacement(s"$attr$cleanPath$quote")
-    })
-
-  // Update relative paths in HTML to add an extra "../" prefix
-  // since the file moves one directory deeper (foo.html -> foo/index.html)
-  // Also convert .html links to clean URLs (foo.html -> foo/)
-  def fixRelativePaths(content: String): String =
-    // Match href="..." or src="..." with relative paths (not starting with /, http, https, #, or data:)
-    val pattern = """((?:href|src)=")([^"/][^"]*)(")""".r
-    pattern.replaceAllIn(content, m => {
-      val attr = m.group(1)
-      val path = m.group(2)
-      val quote = m.group(3)
-      // Skip absolute URLs, anchors, data URIs, and mailto/tel links
-      if path.startsWith("http:") || path.startsWith("https:") ||
-         path.startsWith("#") || path.startsWith("data:") ||
-         path.startsWith("mailto:") || path.startsWith("tel:") then
-        java.util.regex.Matcher.quoteReplacement(m.matched)
-      else
-        // Convert .html links to clean URLs, except index.html
-        val cleanPath =
-          if path.endsWith(".html") && !path.endsWith("index.html") then
-            path.stripSuffix(".html") + "/"
-          else
-            path
-        java.util.regex.Matcher.quoteReplacement(s"$attr../$cleanPath$quote")
-    })
-
-  // Convert slug.html to slug/index.html for clean URLs
-  def convertToCleanUrls(dir: Path): IO[Unit] =
-    // First, move non-index.html files to their own directories
-    Files[IO].walk(dir)
-      .filter(_.extName == ".html")
-      .evalFilter(Files[IO].isRegularFile)
-      .filterNot(_.fileName.toString == "index.html")
-      .evalMap { htmlFile =>
-        val baseName = htmlFile.fileName.toString.stripSuffix(".html")
-        val newDir = htmlFile.parent.map(_ / baseName).getOrElse(Path(baseName))
-        val newFile = newDir / "index.html"
-        for
-          content <- Files[IO].readUtf8(htmlFile).compile.foldMonoid
-          fixedContent = fixRelativePaths(content)
-          _ <- Files[IO].createDirectories(newDir)
-          _ <- Stream.emit(fixedContent).through(fs2.text.utf8.encode).through(Files[IO].writeAll(newFile)).compile.drain
-          _ <- Files[IO].delete(htmlFile)
-        yield ()
-      }
-      .compile
-      .drain *>
-    // Then, update links in all remaining index.html files
-    Files[IO].walk(dir)
-      .filter(p => p.fileName.toString == "index.html")
-      .evalFilter(Files[IO].isRegularFile)
-      .evalMap { htmlFile =>
-        for
-          content <- Files[IO].readUtf8(htmlFile).compile.foldMonoid
-          fixedContent = toCleanUrlLinks(content)
-          _ <- Stream.emit(fixedContent).through(fs2.text.utf8.encode).through(Files[IO].writeAll(htmlFile)).compile.drain
-        yield ()
-      }
-      .compile
-      .drain
-
   // Use a custom theme - templates and CSS are provided in src/templates and src/theme
   val codeCommitTheme = Theme.empty
 
@@ -271,6 +197,7 @@ laika.title = "Blog"
     .to(HTML)
     .using(Markdown.GitHubFlavor)
     .using(SyntectHighlighting(highlighter))
+    .using(PrettyURLs)
     .withRawContent
     .withMessageFilters(lenientFilters)
     .parallel[IO]
@@ -283,7 +210,7 @@ laika.title = "Blog"
       t.fromDirectory("src")
         .toDirectory(outputDir)
         .transform
-    }.void *> convertToCleanUrls(Path(outputDir))
+    }.void
 
   def serve(port: Port): IO[Unit] =
     val routes = Router("/" -> fileService[IO](FileService.Config(outputDir))).orNotFound
