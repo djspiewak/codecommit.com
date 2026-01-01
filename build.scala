@@ -18,6 +18,7 @@ import laika.ast.Path.Root
 import laika.ast.*
 import laika.helium.Helium
 import laika.helium.config.*
+import laika.theme.config.Color
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
@@ -233,6 +234,17 @@ laika.title = "Blog"
       .compile
       .drain
 
+  // Define the original WordPress theme colors
+  val maroon = Color.hex("990033")
+  val maroonDark = Color.hex("660000")
+  val maroonLight = Color.hex("993154")
+  val cream = Color.hex("e1e1d3")
+  val creamLight = Color.hex("f6f6e2")
+  val beige = Color.hex("f5f5dc")
+  val grayBorder = Color.hex("c8c7b7")
+  val codeBg = Color.hex("f9f9f9")
+  val textColor = Color.hex("202020")
+
   val helium = Helium.defaults
     .site.metadata(
       title = Some("Code Commit"),
@@ -240,15 +252,39 @@ laika.title = "Blog"
       language = Some("en")
     )
     .site.topNavigationBar(
-      homeLink = IconLink.internal(Root / "index.md", HeliumIcon.home),
+      homeLink = ImageLink.internal(Root / "index.md", Image.internal(Root / "helium" / "code-commit.png", alt = Some("Code Commit"))),
       navLinks = Seq(
         TextLink.internal(Root / "about.md", "About"),
         TextLink.internal(Root / "blog" / "index.md", "Blog")
       )
     )
+    .site.favIcons(
+      Favicon.internal(Root / "helium" / "favicon.ico", "32x32")
+    )
+    // Light mode colors - original WordPress theme maroon palette
+    .site.themeColors(
+      primary = maroon,
+      secondary = maroon,  // Use maroon for headers too
+      primaryMedium = maroon,
+      primaryLight = creamLight,  // Cream for sidebar backgrounds
+      text = textColor,
+      background = Color.hex("ffffff"),
+      bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
+    )
+    // Dark mode - same as light mode to effectively disable dark mode
+    .site.darkMode.themeColors(
+      primary = maroon,
+      secondary = maroon,
+      primaryMedium = maroon,
+      primaryLight = creamLight,
+      text = textColor,
+      background = Color.hex("ffffff"),
+      bgGradient = (Color.hex("ffffff"), Color.hex("ffffff"))
+    )
     .site.footer(
       "© Daniel Spiewak"
     )
+    .site.internalCSS(Root / "helium" / "site" / "codecommit.css")
     .build
 
   // Use lenient message handling - don't fail on warnings/errors, don't render them
