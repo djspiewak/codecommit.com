@@ -31,7 +31,7 @@
   --bg-color: #ffffff;
   
   /* Layout */
-  --top-bar-height: 60px;
+  --top-bar-height: 100px;
   --sidebar-width: 280px;
   --content-max-width: 1000px;
   --block-spacing: 20px;
@@ -90,35 +90,52 @@ a:active {
   left: 0;
   right: 0;
   height: var(--top-bar-height);
-  background: url('../prototype-header.jpg') var(--cream);
-  background-size: cover;
-  background-position: center;
+  background-color: var(--cream);
   border-bottom: 2px solid var(--border-color);
   z-index: 2000;
 }
 
-/* Logo - absolutely centered in the full browser window */
-#top-bar .logo {
+#top-bar::before {
+  content: '';
   position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('../prototype-header.jpg');
+  background-size: cover;
+  background-position: center;
+  filter: blur(2px);
+  z-index: -1;
+}
+
+/* Branding container - holds logo and tagline */
+#top-bar .branding {
+  position: absolute;
+  left: 25px;
   top: 0;
   height: var(--top-bar-height);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#top-bar .logo {
   display: flex;
   align-items: center;
 }
 
 #top-bar .logo img {
-  max-height: calc(var(--top-bar-height) - 15px);
+  height: 50px;
   width: auto;
+  filter: drop-shadow(2px 2px 3px rgba(0, 0, 0, 0.5));
 }
 
-/* Navigation links - right-aligned within the content area */
+/* Navigation links - right-aligned at bottom of header */
 #top-bar .top-nav {
   position: absolute;
-  right: 45px;
-  top: 0;
-  height: var(--top-bar-height);
+  right: 25px;
+  bottom: 12px;
   display: flex;
   align-items: center;
   gap: 20px;
@@ -140,6 +157,16 @@ a:active {
 #top-bar .top-nav a:hover {
   color: #f0f0f0;
   text-decoration: none;
+}
+
+/* Tagline - superscript style next to logo */
+#top-bar .tagline {
+  align-self: flex-start;
+  margin-top: 22px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.1em;
+  font-style: italic;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* Mobile nav toggle */
@@ -548,7 +575,8 @@ li.tab a {
 }
 
 @media (max-width: 600px) {
-  #top-bar .top-nav {
+  #top-bar .top-nav,
+  #top-bar .branding .tagline {
     display: none;
   }
   
