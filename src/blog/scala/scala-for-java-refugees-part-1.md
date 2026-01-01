@@ -6,7 +6,7 @@ laika.metadata.date = "2008-01-07"
 
 # Scala for Java Refugees Part 1: `main(String[])`
 
-_This article is also available in[Spanish](<http://blog.santiagobasulto.com.ar/2011/11/22/scala-para-refugiados-de-java-parte-1/>) and [Bulgarian](<http://www.fatcow.com/edu/codecommit-java-bl/>)._
+_This article is also available in [Spanish](<http://blog.santiagobasulto.com.ar/2011/11/22/scala-para-refugiados-de-java-parte-1/>) and [Bulgarian](<http://www.fatcow.com/edu/codecommit-java-bl/>)._
 
 You know who you are.  You're the developer who picked up Java years ago, maybe as a second language and better alternative to C++, maybe as your first language coming into the industry.  You're comfortable with Java, you know its ins and outs, its moods.  It's like an old girlfriend; you may not feel the vibe anymore, but you know just how to rub it so it smiles.  In short, you're a craftsman, and Java is your workhorse tool.
 

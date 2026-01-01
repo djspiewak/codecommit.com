@@ -6,7 +6,7 @@ laika.metadata.date = "2010-12-27"
 
 # Monads Are Not Metaphors
 
-_This article is also[available in Japanese](<http://eed3si9n.com/ja/monads-are-not-metaphors>)._
+_This article is also [available in Japanese](<http://eed3si9n.com/ja/monads-are-not-metaphors>)._
 
 I am about to break a promise. Almost three years ago, I promised myself that I would _never_ write an article about monads. There are too many such articles already; so many, in fact, that people are often confused by the sheer proliferation. Everyone seems to have a different take on the subject, meaning that those attempting to learn the concept for the first time are stuck trying to reason out the commonalities between burritos, space suits, elephants and desert Bedouins.
 
