@@ -16,10 +16,27 @@ import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
 import com.comcast.ip4s.*
+import java.nio.file.{Files, Path as JPath, StandardCopyOption}
+import scala.jdk.CollectionConverters.*
 
 object Build extends IOApp:
 
   val outputDir = "_site"
+
+  // Convert slug.html to slug/index.html for clean URLs
+  def convertToCleanUrls(dir: JPath): IO[Unit] = IO {
+    Files.walk(dir).iterator().asScala.toList
+      .filter(p => Files.isRegularFile(p) && p.toString.endsWith(".html"))
+      .filterNot(p => p.getFileName.toString == "index.html")
+      .foreach { htmlFile =>
+        val fileName = htmlFile.getFileName.toString
+        val baseName = fileName.stripSuffix(".html")
+        val newDir = htmlFile.getParent.resolve(baseName)
+        val newFile = newDir.resolve("index.html")
+        Files.createDirectories(newDir)
+        Files.move(htmlFile, newFile, StandardCopyOption.REPLACE_EXISTING)
+      }
+  }
 
   val helium = Helium.defaults
     .site.metadata(
@@ -56,7 +73,7 @@ object Build extends IOApp:
       t.fromDirectory("src")
         .toDirectory(outputDir)
         .transform
-    }.void
+    }.void *> convertToCleanUrls(JPath.of(outputDir))
 
   def serve(port: Port): IO[Unit] =
     val routes = Router("/" -> fileService[IO](FileService.Config(outputDir))).orNotFound
