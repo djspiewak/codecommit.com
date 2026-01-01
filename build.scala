@@ -308,8 +308,6 @@ object Build extends IOApp:
        |laika.title = "Blog - Page $page"
        |%}
        |
-       |# Blog
-       |
        |@:blogIndex($page)
        |""".stripMargin
 
