@@ -30,7 +30,10 @@ import cats.data.NonEmptySet
 object Build extends IOApp:
 
   // Path to the syntect-based highlighter library
-  val highlighterLib = java.nio.file.Path.of("highlighter/target/release/libhighlighter.dylib")
+  val highlighterLib =
+    val os = System.getProperty("os.name").toLowerCase
+    val ext = if os.contains("linux") then "so" else if os.contains("mac") then "dylib" else "dll"
+    java.nio.file.Path.of(s"highlighter/target/release/libhighlighter.$ext")
 
   def escapeHtml(s: String): String =
     s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

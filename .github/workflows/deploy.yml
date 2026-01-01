@@ -21,6 +21,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build highlighter
+        run: cargo build --release --manifest-path highlighter/Cargo.toml
+
       - name: Setup Scala CLI
         uses: VirtusLab/scala-cli-setup@v1
         with:
