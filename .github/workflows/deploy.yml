@@ -24,7 +24,7 @@ jobs:
       - name: Setup Scala CLI
         uses: VirtusLab/scala-cli-setup@v1
         with:
-          jvm: temurin:21
+          jvm: temurin:25
 
       - name: Build site
         run: scala-cli run build.scala
