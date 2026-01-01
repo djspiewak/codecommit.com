@@ -1,0 +1,102 @@
+{%
+laika.title = "Should We Really Study Other Languages?"
+laika.metadata.date = "2008-03-04"
+%}
+
+
+# Should We Really Study Other Languages?
+
+The practice of learning multiple languages has really become dogma in the modern developer community.  _Everyone_ knows that you should study different languages, different paradigms and various techniques for accomplishing the same thing.  Why?  The canonical answer is that it helps you grow into a better programmer in your primary language.  After all, if you know how to compose functions in Lisp, naturally that must make it easier to design flexible systems in Java.  I would beg to differ.
+
+I must admit, I used to be a card-carrying member of the "one language per year" club.  I used to push myself and other developers to get their feet wet in alternative languages, even ones which had no practical application (I learned Ruby back when it was just a toy for Asian folks).  Recently though, I've been coming more to the conclusion that perhaps this frenetic dash to learn the most languages might not be the "ultimate answer" after all.  A commenter on Reddit [relates a story](<http://programming.reddit.com/info/63mw9/comments/c02q5wj>) which is (I believe) quite applicable to the subject:
+
+> When I was in college, one of the jobs I had was a TA for an intro programming class. For one of their projects, I was asked to whip up a kind of web browser “shell” in Java. The basic idea was to make a browser that would be highly extendable by students, while freeing them from worrying about the overall rendering framework.
+> 
+> Now, the first language that I learned was Smalltalk, which has historically been relatively design-pattern-free due to blocks and whatnot, and I had only learned Java as an afterthought while in college, so I coded in a slightly unorthodox way, making use of anonymous inner classes (i.e., shitty lambdas), reflection, and the like. I ended up with an extremely loosely coupled design that was extremely easy to extend; just unorthodox.
+> 
+> When I gave it to the prof, his first reaction, on reading the code, was…utter bafflement. He and another TA actually went over what I wrote in an attempt to find and catalog the GoF patterns that I’d used when coding the application. Their conclusion after a fairly thorough review was that my main pattern was, “Code well.”
+
+You may laugh (I did), but I can't tell you how much code I've had to work with which reminds me of this tale.  Developers these days pick up patterns and best-practices from dozens of languages and try to apply them to a language for which they are ill suited.  Consider the following code:
+
+```java
+public class SortUtils {
+    public static <T> List<T> mergeSort(final List<T> list) {
+        return new Object() {
+            private final List<T>[] divided = divide(list);
+            
+            public List<T> run() {
+                return merge(mergeSort(divided[0]), mergeSort(divided[1]));
+            }
+        }.run();
+    }
+    
+    public static <T> List<T>[] divide(final List<T> list) {
+        if (list.size() == 0) {
+            return new List<T>[] {new ArrayList<T>(), new ArrayList<T>()};
+        } else if (list.size() == 1) {
+            return new List<T>[] {list, new ArrayList<T>()};
+        } else {
+            return new Object() {
+                // this part doesn't really work, it's just illustrative
+                private final T first = list.remove();
+                private final T second = list.remove();
+                private final List<T>[] sub = divide(list);
+                
+                public List<T>[] run() {
+                    return new List<T>[] {new ArrayList<T>() {
+                        {
+                            addAll(sub[0]);
+                            add(first);
+                        }
+                    }, new ArrayList<T>() {
+                        {
+                            addAll(sub[1]);
+                            add(second);
+                        }
+                    }};
+                }
+            }.run();
+        }
+    }
+    
+    public static <T> List<T> merge(final List<T> left, final List<T> right) {
+        if (left.size() == 0) {
+            return right;
+        } else if (right.size() == 0) {
+            return left;
+        } else {
+            if (left.get(0) < right.get(0)) {
+                return new ArrayList<T>() {
+                    {
+                        add(left.remove(0));
+                        addAll(merge(left, right));
+                    }
+                };
+            } else {
+                return new ArrayList<T>() {
+                    {
+                        add(right.remove(0));
+                        addAll(merge(left, right));
+                    }
+                };
+            }
+        }
+    }
+}
+```
+
+I know what you're thinking: Whoever wrote this is a sick, sick programmer.  Actually I wrote it, but that's beside the point...  :-)
+
+The point is that taking knowledge gained in one language and directly applying it to another is almost never the right approach.  This isn't how you sort a list in Java, it's how you would do it in ML, or maybe even Lisp.  By trying to apply functional idioms directly to an object-oriented language, I've accomplished code which does two things.  First, it's unmaintainable.  No sane-minded Java developer is ever going to be able to take this code and make incremental improvements.  Second (and just as important), it is extremely slow.  Pure-functional languages are written in such a way as to make function calls, recursion and immutable data very performant.  Java just doesn't work like that.  This code is creating objects left and right, recursing and copying data back and forth so many times its a wonder the whole machine doesn't crash.
+
+What's ironic is even with all my efforts, I still couldn't eliminate mutable data and sequential statements entirely.  Java's data structures are mutable by design, something which makes it very inefficient to try to do things immutably.  Java's APIs just aren't built to comply with expression-based algorithms, something which is an absolute must when working with immutable data.
+
+Throwing away Java's utter lack of functional constructs like cons (::) and pattern matching, this code is still horrible because it doesn't follow the Java idioms.  Not only is the Java language built to perform better when used imperatively, but the constructs are such that the code is more concise and maintainable.  Would it have killed readability to use a loop?  Hardly.  In fact, considering the mess we got when trying to avoid imperative constructs, it's difficult to imagine things getting _less_ readable.
+
+This is certainly an extreme example, no right-minded developer would ever try to do something like this in the real world, but the point remains.  The same problems can be seen even in examples like applying Java's for-loop idiom for iterating over arrays in Ruby.  Language-specific idioms are important, and we only cripple ourselves if we ignore them.
+
+So at the end of the day, does this really mean we should stop learning new languages?  Absolutely not.  As "Pragmatic Dave" famously pointed out, learning a new language opens our mind to new ways of approaching problems.  It's not so much how the code is written as much as gaining a deeper insight into the process of solving the problem.  Learning Scala has helped me refine my problem-solving abilities, allowing me to more effectively approach tasks in any language.
+
+However, I think that this "perspective improvement" is a bit over-stressed.  Yes, problem solving is an important skill, one which should be refined through experience with multiple approaches, but I don't think it's as critical as many people make it out to be.  I know some really phenomenal developers who only know one language.  Could they be better for learning another?  Probably, but the point is they're doing just fine right now.  Being multi-lingual is not critical, and as my facetious example illustrates, it can be very harmful.
+
+In the end, the best reason for learning a new language stands unchallenged and unassailable: it's fun.  I derive a great deal of satisfaction from learning how to do things in a new language, applying my old skills to new tools.  At the end of the day, I don't really care whether I'm learning anything important to my career.  This may be the case, but the only thing which really matters to me is the challenge of the new puzzle, a new riddle to crack.  I certainly believe that most good developers will derive the same enjoyment, and as long as they keep their idioms straight, I'm perfectly content with that.

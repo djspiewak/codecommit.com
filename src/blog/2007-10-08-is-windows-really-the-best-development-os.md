@@ -1,0 +1,29 @@
+{%
+laika.title = "Is Windows Really the Best Development OS?"
+laika.metadata.date = "2007-10-08"
+%}
+
+
+# Is Windows Really the Best Development OS?
+
+I realize that the stated topic is a classic example of flame-bait, but it's still a question which deserves some serious consideration.  Is Windows really the best OS for a developer to use?  And when I say developer, I mean someone like me who does a nice assortment of Java, Ruby, C++, etc.  Obviously, someone who does .NET is probably using Windows (see my [previous post](<http://www.codecommit.com/blog/net/monodevelop-the-net-developers-linux-outlet>)), and someone writing Objective-C applications will nine-times-out-of-ten use MacOS X.
+
+Java's a bet less OS specific though.  By it's very nature, it's cross-platform.  Not only the language itself (like C++ is cross-platform), but the compiled binaries.  I don't have to worry about having a Mac handy to compile a snapshot of an application for my boss, I can just send him a JAR I assembled on my laptop running Vista.  In this respect, I can consider myself completely liberated from OS-level concerns.
+
+Tools are also not really an issue.  After all, the three best Java development tools (Eclipse, NetBeans and IntelliJ, in that order) are all based on Java.  I don't have to worry about learning a new application to do development, or concern myself with rebuilding all my settings in an unfamiliar environment.  I can setup a fresh machine running any OS with Eclipse and my favorite formatting and syntax highlighting configuration in under an hour (download time included).  In fact, I've availed myself of this fact many times.
+
+So if tools and language aren't a concern, what is?  Well, it turns out that tools really are worth examining, and I mean deeper than face-value IDE.  For example, MacOS X supports the fantastic editor TextMate.  jEdit is a worthy substitute which runs on any platform, but it's just not as polished as TextMate.  Also worthy of consideration, and indeed a far larger issue for me, is the non-existence of a decent shell on Windows.  PowerShell isn't bad, but I'm sorry, it's no bash.  I had to make some (reasonably) generic changes to a set of config files on my server the other day.  Since I was on Linux, all it took was a simple for loop, a couple greps piped to sed and then back into the files, and I was home free.  If I was on Windows, it would have taken me at least ten minutes of tedious open-file, copy/paste/reshuffle, save, close, open next file, etc.  In short, Linux saved me quite a bit of time out of my day, just by having a superior shell.  Mac offers the same advantage, though its version of the GNU utils isn't as up-to-date as my Gentoo Linux server.
+
+Another thing to consider is space-efficiency.  I have a reasonably high-resolution screen, but even with such a dazzlingly large workspace, I hate to waste even a single 1px line.  This includes things like fonts and how legibly they render at low sizes.  I save literally inches of space in Eclipse by setting the editor font size to 10pt, and that's just a single application.  Scaling the issue up to an entire WS just compounds both the benefits and the consequences.  In both of these areas, Windows (especially Vista) seems to excel beyond the competition.  I hate to say it, but I think Windows got something right on which Mac and Gnome (Linux) are missing the mark.  Just consider the following screenshots:
+
+![vista](/assets/images/blog/wp-content/uploads/2007/10/vista.png)
+
+![gnome](/assets/images/blog/wp-content/uploads/2007/10/gnome.png)
+
+Notice how even though the Vista window title bars are a bit larger, the fonts are a shade smaller.  In Gnome, I have to leave the font-size that high, because the window titles become unreadable and ugly at any lower level.  Also notice how the menu height on Gnome is significantly larger than Vista.  Even more importantly, the tab size within Eclipse is almost a third larger than the corresponding tab in Windows (due to the larger font size).  The toolbar is taller, and the fonts are just a shade larger for the same size and DPI (Consolas vs Monospace).  All in all, there are almost 20-30 pixels of height wasted in Gnome vs Windows.  Granted, Mac doesn't waste quite as much space, but in my experience, most things are just a shade less compact than on Windows.
+
+The larger issue I have with Mac is extreme mouse-oriented nature.  This makes it great for beginners, but even with Quicksilver, I still find myself reaching for the mouse more often than I'd like.  Gnome isn't bad for this, having most of the same keyboard features as Windows (especially with Deskbar), but it's just not as slick as Vista with the QuickSearch.  And yes, I do know the shortcuts for both Mac and Linux as well as I do for Windows, as I've been using both platforms for years.  In fact, my first computer was a Mac, and that was all I used for a long time.
+
+So all in all, the question is: how do the pros and cons match up?  I would love to have the real shell, real gcc and real permissions system that Linux offers, but I would hate to give up the font renderer and slick power-user features of Windows.  I could go with a Mac, but the keyboard is important.  And on top of that, so many cross-platform applications just aren't up to snuff on Mac, failing to do things "the Mac way".
+
+So with great disappointment, I'm afraid I'll have to stick with Windows for the time being.  However, as my friend Lowell points out, I can just as easily build myself a second machine which runs Linux primarily.  This way, I can get all of the benefits of Linux as a primary machine, but still retaining the power and application support of Windows.  Maybe this is the best way to go.  Hopefully this will work out as the best balance overall.

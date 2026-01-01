@@ -1,6 +1,15 @@
-_site
-.sass-cache
-.jekyll-cache
+# Build output
+_site/
+
+# Scala-cli artifacts
+.scala-build/
+.bsp/
+
+# Old Jekyll artifacts (can be removed)
+.sass-cache/
+.jekyll-cache/
 .jekyll-metadata
-vendor
+vendor/
+
+# Recovery
 /recovery/
