@@ -33,7 +33,6 @@
   /* Layout */
   --top-bar-height: 60px;
   --sidebar-width: 280px;
-  --page-nav-width: 250px;
   --content-max-width: 750px;
   --block-spacing: 20px;
   
@@ -103,9 +102,9 @@ a:active {
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  max-width: 1400px;
+  max-width: calc(var(--content-max-width) + var(--sidebar-width) + 90px);
   margin: 0 auto;
-  padding: 0 45px 0 20px;
+  padding: 0 45px 0 calc(var(--sidebar-width) + 20px);
 }
 
 #top-bar .logo {
@@ -237,77 +236,13 @@ a:active {
   overflow-y: auto;
 }
 
-/* ===== Right Sidebar (Page Navigation) ===== */
-#page-nav {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: var(--page-nav-width);
-  padding: 30px 15px 30px 10px;
-  font-size: 0.85rem;
-}
-
-#page-nav .header {
-  font-weight: 600;
-  color: var(--primary-color);
-  margin: 0 0 10px 0;
-  padding-bottom: 5px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-#page-nav ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-#page-nav li {
-  margin: 0;
-}
-
-#page-nav a {
-  display: block;
-  padding: 4px 0;
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-#page-nav a:hover {
-  color: var(--primary-color);
-  text-decoration: none;
-}
-
-#page-nav .level2 {
-  padding-left: 10px;
-}
-
-#page-nav .level3 {
-  padding-left: 20px;
-  font-size: 0.8rem;
-}
-
 /* ===== Main Content Area ===== */
 main.content {
   display: block;
-  width: 100%;
   max-width: var(--content-max-width);
   margin: 0 auto;
   padding: 30px 45px 45px;
   min-height: 100vh;
-}
-
-/* Adjust for page nav on wide screens */
-@media (min-width: 1450px) {
-  main.content {
-    margin-left: 45px;
-    margin-right: calc(var(--page-nav-width) + 30px);
-  }
-}
-
-@media (max-width: 1449px) {
-  #page-nav {
-    display: none;
-  }
 }
 
 /* ===== Typography ===== */
@@ -598,6 +533,10 @@ li.tab a {
     left: 0;
   }
   
+  #top-bar .header-inner {
+    padding-left: 20px;
+  }
+  
   #nav-icon {
     display: flex;
   }
@@ -634,7 +573,6 @@ li.tab a {
 @media print {
   #top-bar,
   #sidebar,
-  #page-nav,
   #nav-icon {
     display: none;
   }
