@@ -130,7 +130,7 @@ One solution to this problem which provides a compromise between these two world
 
 To get a handle on this concept, let's imagine that we have a trie with a branching factor of 3 (much smaller than it should be, but it's easier to draw). Into this vector we will insert the following data:
 
-**  Index **
+**  Index **
 
 | 
 
@@ -320,4 +320,4 @@ At the end of the day though, these differences are all fairly academic. Just ha
 
 ### Update
 
-The implementation of `Vector` which I present in this article is inherently much less efficient than the one Rich Hickey created for Clojure.  I finally broke down and created a line-for-line port from Clojure's Java implementation of `PersistentVector` into a Scala class.  I _strongly_ suggest that you use this (much faster) implementation, rather than my own flawed efforts.  :-)  You can download the improved `Vector` here: [Vector.scala](<http://www.codecommit.com/blog/misc/implementing-persistent-vectors-in-scala/final/Vector.scala>).
+The implementation of `Vector` which I present in this article is inherently much less efficient than the one Rich Hickey created for Clojure.  I finally broke down and created a line-for-line port from Clojure's Java implementation of `PersistentVector` into a Scala class.  I _strongly_ suggest that you use this (much faster) implementation, rather than my own flawed efforts.  :-)  You can download the improved `Vector` here: [Vector.scala](<http://www.codecommit.com/blog/misc/implementing-persistent-vectors-in-scala/final/Vector.scala>).

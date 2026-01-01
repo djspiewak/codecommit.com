@@ -21,7 +21,7 @@ for (String name : names) {
 }
 ```
 
-This code should be old hat to anyone coming from a Java background. Under the surface, this code is compiled into a `while`-loop with an iterator and an increment operation.  The code steps through the array, assigning each successive element to `name`. Most statically typed languages have a construct similar to this. For example, C# offers the `foreach` statement, which is almost precisely similar to Java's enhanced for-loop, but with a slightly different syntax. However, some languages (like Ruby) idiomatically eschew loops and rely instead on higher-order methods. Translating the above into Ruby yields the following:
+This code should be old hat to anyone coming from a Java background. Under the surface, this code is compiled into a `while`-loop with an iterator and an increment operation.  The code steps through the array, assigning each successive element to `name`. Most statically typed languages have a construct similar to this. For example, C# offers the `foreach` statement, which is almost precisely similar to Java's enhanced for-loop, but with a slightly different syntax. However, some languages (like Ruby) idiomatically eschew loops and rely instead on higher-order methods. Translating the above into Ruby yields the following:
 
 ```ruby
 names = ['Daniel', 'Chris', 'Joseph']

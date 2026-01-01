@@ -6,11 +6,11 @@ laika.metadata.date = "2009-02-09"
 
 # Interop Between Java and Scala
 
-Sometimes, the simplest things are the most difficult to explain.  Scala's interoperability with Java is completely unparalleled, even including languages like Groovy which tout their tight integration with the JVM's venerable standard-bearer.  However, despite this fact, there is almost no documentation (aside from chapter 29 in _Programming in Scala_ ) which shows how this Scala/Java integration works and where it can be used.  So while it may not be the most exciting or theoretically interesting topic, I have taken it upon myself to fill the gap.
+Sometimes, the simplest things are the most difficult to explain.  Scala's interoperability with Java is completely unparalleled, even including languages like Groovy which tout their tight integration with the JVM's venerable standard-bearer.  However, despite this fact, there is almost no documentation (aside from chapter 29 in _Programming in Scala_ ) which shows how this Scala/Java integration works and where it can be used.  So while it may not be the most exciting or theoretically interesting topic, I have taken it upon myself to fill the gap.
 
 ### Classes are Classes
 
-The first piece of knowledge you need about Scala is that Scala classes are real JVM classes.  Consider the following snippets, the first in Java:
+The first piece of knowledge you need about Scala is that Scala classes are real JVM classes.  Consider the following snippets, the first in Java:
 
 ```java
 public class Person {
@@ -28,7 +28,7 @@ class Person {
 }
 ```
 
-Despite the very different syntax, both of these snippets will produce almost identical bytecode when compiled.  Both will result in a single file, `Person.class`, which contains a default, no-args constructor and a public method, `getName()`, with return type `java.lang.String`.  Both classes may be used from Scala:
+Despite the very different syntax, both of these snippets will produce almost identical bytecode when compiled.  Both will result in a single file, `Person.class`, which contains a default, no-args constructor and a public method, `getName()`, with return type `java.lang.String`.  Both classes may be used from Scala:
 
 ```scala
 val p = new Person()
@@ -42,11 +42,11 @@ Person p = new Person();
 p.getName();      // => "Daniel Spiewak"
 ```
 
-In the case of either language, we can easily swap implementations of the `Person` class without making any changes to the call-site.  In short, you can use Scala classes from Java (as well as Java classes from Scala) without ever even knowing that they were defined within another language.
+In the case of either language, we can easily swap implementations of the `Person` class without making any changes to the call-site.  In short, you can use Scala classes from Java (as well as Java classes from Scala) without ever even knowing that they were defined within another language.
 
-This single property is the very cornerstone of Scala's philosophy of bytecode translation.  Wherever possible — and that being more often than not — Scala elements are translated into bytecode which _directly_ corresponds to the equivalent feature in Java.  Scala classes equate to Java classes, methods and fields within those classes become Java methods and fields.
+This single property is the very cornerstone of Scala's philosophy of bytecode translation.  Wherever possible — and that being more often than not — Scala elements are translated into bytecode which _directly_ corresponds to the equivalent feature in Java.  Scala classes equate to Java classes, methods and fields within those classes become Java methods and fields.
 
-This allows some pretty amazing cross-language techniques.  For example, I can extend a Java class within Scala, overriding some methods.  I can in turn extend this Scala class from within Java once again with everything working exactly as anticipated:
+This allows some pretty amazing cross-language techniques.  For example, I can extend a Java class within Scala, overriding some methods.  I can in turn extend this Scala class from within Java once again with everything working exactly as anticipated:
 
 ```scala
 class MyAbstractButton extends JComponent {
@@ -74,9 +74,9 @@ public class ProKitButton extends MyAbstractButton {
 
 ### Traits are Interfaces
 
-This is probably the one interoperability note which is the _least_ well-known.  Scala's traits are vastly more powerful than Java's interfaces, often leading developers to the erroneous conclusion that they are incompatible.  Specifically, traits allow method definitions, while interfaces must be purely-abstract.  Yet, despite this significant distinction, Scala is still able to compile traits into interfaces at the bytecode level...with some minor enhancements.
+This is probably the one interoperability note which is the _least_ well-known.  Scala's traits are vastly more powerful than Java's interfaces, often leading developers to the erroneous conclusion that they are incompatible.  Specifically, traits allow method definitions, while interfaces must be purely-abstract.  Yet, despite this significant distinction, Scala is still able to compile traits into interfaces at the bytecode level...with some minor enhancements.
 
-The simplest case is when the trait only contains abstract members.  For example:
+The simplest case is when the trait only contains abstract members.  For example:
 
 ```scala
 trait Model {
@@ -110,7 +110,7 @@ class StringModel extends Model {
 }
 ```
 
-Things start to get a little sticky when we have method definitions within our traits.  For example, we could add a `printValue()` method to our `Model` trait:
+Things start to get a little sticky when we have method definitions within our traits.  For example, we could add a `printValue()` method to our `Model` trait:
 
 ```scala
 trait Model {
@@ -122,7 +122,7 @@ trait Model {
 }
 ```
 
-Obviously, we can't directly translate this into _just_ an interface; something else will be required.  Scala solves this problem by introducing an ancillary class which contains all of the method definitions for a given trait.  Thus, when we look at the translation for our modified `Model` trait, the result looks something like this:
+Obviously, we can't directly translate this into _just_ an interface; something else will be required.  Scala solves this problem by introducing an ancillary class which contains all of the method definitions for a given trait.  Thus, when we look at the translation for our modified `Model` trait, the result looks something like this:
 
 ```java
 public interface Model extends ScalaObject {
@@ -154,9 +154,9 @@ public class StringModel implements Model {
 }
 ```
 
-It's not perfect, but it allows us to use some of Scala's more advanced trait-based functionality from within Java.  Incidentally, the above code _does_ compile without a problem.  I wasn't actually aware of this fact, but "`$`" is a legal character in Java identifiers, allowing interaction with some of Scala's more interesting features.
+It's not perfect, but it allows us to use some of Scala's more advanced trait-based functionality from within Java.  Incidentally, the above code _does_ compile without a problem.  I wasn't actually aware of this fact, but "`$`" is a legal character in Java identifiers, allowing interaction with some of Scala's more interesting features.
 
-There is, however, one little wrinkle that I'm conveniently side-stepping: the `$tag` method.  This is a method defined within the `ScalaObject` trait designed to help optimize pattern matching.  Unfortunately, it also means yet another abstract method which must be defined when implementing Scala traits which contain method definitions.  The correct version of the `StringModel` class from above actually looks like the following:
+There is, however, one little wrinkle that I'm conveniently side-stepping: the `$tag` method.  This is a method defined within the `ScalaObject` trait designed to help optimize pattern matching.  Unfortunately, it also means yet another abstract method which must be defined when implementing Scala traits which contain method definitions.  The correct version of the `StringModel` class from above actually looks like the following:
 
 ```java
 public class StringModel implements Model {
@@ -174,11 +174,11 @@ public class StringModel implements Model {
 }
 ```
 
-To be honest, I'm not sure what is the "correct" value to return from `$tag`.  In this case, `0` is just a stub, and I'm guessing a safe one since `StringModel` is the only subtype of `Model`.  Can anyone who knows more about the Scala compiler shed some light on this issue?
+To be honest, I'm not sure what is the "correct" value to return from `$tag`.  In this case, `0` is just a stub, and I'm guessing a safe one since `StringModel` is the only subtype of `Model`.  Can anyone who knows more about the Scala compiler shed some light on this issue?
 
 ### Generics are, well...Generics
 
-Generics are (I think) probably the coolest and most well-done part of Scala's Java interop.  Anyone who has more than a passing familiarity with Scala will know that its type system is significantly more powerful than Java's.  Some of this power comes in the form of its type parameterization, which is vastly superior to Java's generics.  For example, type variance can be handled at declaration-site, rather than only call-site (as in Java):
+Generics are (I think) probably the coolest and most well-done part of Scala's Java interop.  Anyone who has more than a passing familiarity with Scala will know that its type system is significantly more powerful than Java's.  Some of this power comes in the form of its type parameterization, which is vastly superior to Java's generics.  For example, type variance can be handled at declaration-site, rather than only call-site (as in Java):
 
 ```scala
 abstract class List[+A] {
@@ -186,9 +186,9 @@ abstract class List[+A] {
 }
 ```
 
-The `+` notation prefixing the `A` type parameter on the `List` class means that `List` will vary covariantly with its parameter.  In English, this means that `List[String]` is a subtype of `List[Any]` (because `String` is a subtype of `Any`).  This is a very intuitive relationship, but one which Java is incapable of expressing.
+The `+` notation prefixing the `A` type parameter on the `List` class means that `List` will vary covariantly with its parameter.  In English, this means that `List[String]` is a subtype of `List[Any]` (because `String` is a subtype of `Any`).  This is a very intuitive relationship, but one which Java is incapable of expressing.
 
-Fortunately, Scala is able to exploit one of the JVM's most maligned features to support things like variance and higher-kinds without sacrificing perfect Java interop.  Thanks to type erasure, Scala generics can be compiled to Java generics without any loss of functionality on the Scala side.  Thus, the Java translation of the `List` definition above would be as follows:
+Fortunately, Scala is able to exploit one of the JVM's most maligned features to support things like variance and higher-kinds without sacrificing perfect Java interop.  Thanks to type erasure, Scala generics can be compiled to Java generics without any loss of functionality on the Scala side.  Thus, the Java translation of the `List` definition above would be as follows:
 
 ```java
 public abstract class List<A> {
@@ -196,7 +196,7 @@ public abstract class List<A> {
 }
 ```
 
-The variance annotation is gone, but Java wouldn't be able to make anything of it anyway.  The huge advantage to this translation scheme is it means that Java's generics and Scala's generics are one and the same at the bytecode level.  Thus, Java can use generic Scala classes without a second thought:
+The variance annotation is gone, but Java wouldn't be able to make anything of it anyway.  The huge advantage to this translation scheme is it means that Java's generics and Scala's generics are one and the same at the bytecode level.  Thus, Java can use generic Scala classes without a second thought:
 
 ```java
 import scala.Tuple2;
@@ -209,11 +209,11 @@ Obviously, this is a lot more verbose than the Scala equivalent, "`("Daniel", "S
 
 ### Operators are Methods
 
-One of the most obvious differences between Java and Scala is that Scala supports operator overloading.  In fact, Scala supports a variant of operator overloading which is far stronger than anything offered by C++, C# or even Ruby.  With very few exceptions, _any_ symbol may be used to define a custom operator.  This provides tremendous flexibility in DSLs and even your average, every-day API (such as `List` and `Map`).
+One of the most obvious differences between Java and Scala is that Scala supports operator overloading.  In fact, Scala supports a variant of operator overloading which is far stronger than anything offered by C++, C# or even Ruby.  With very few exceptions, _any_ symbol may be used to define a custom operator.  This provides tremendous flexibility in DSLs and even your average, every-day API (such as `List` and `Map`).
 
-Obviously, this particular language feature is not going to translate into Java quite so nicely.  Java doesn't support operator overloading of _any_ variety, much less the über-powerful form defined by Scala.  Thus, Scala operators must be compiled into an entirely non-symbolic form at the bytecode level, otherwise Java interop would be irreparably broken, and the JVM itself would be unable to swallow the result.
+Obviously, this particular language feature is not going to translate into Java quite so nicely.  Java doesn't support operator overloading of _any_ variety, much less the über-powerful form defined by Scala.  Thus, Scala operators must be compiled into an entirely non-symbolic form at the bytecode level, otherwise Java interop would be irreparably broken, and the JVM itself would be unable to swallow the result.
 
-A good starting place for deciding on this translation is the way in which operators are declared in Scala: as methods.  Every Scala operator (including unary operators like `!`) is defined as a method within a class:
+A good starting place for deciding on this translation is the way in which operators are declared in Scala: as methods.  Every Scala operator (including unary operators like `!`) is defined as a method within a class:
 
 ```scala
 abstract class List[+A] {
@@ -223,7 +223,7 @@ abstract class List[+A] {
 }
 ```
 
-Since Scala classes become Java classes and Scala methods become Java methods, the most obvious translation would be to take each operator method and produce a corresponding Java method with a heavily-translated name.  In fact, this is exactly what Scala does.  The above class will compile into the equivalent of this Java code:
+Since Scala classes become Java classes and Scala methods become Java methods, the most obvious translation would be to take each operator method and produce a corresponding Java method with a heavily-translated name.  In fact, this is exactly what Scala does.  The above class will compile into the equivalent of this Java code:
 
 ```java
 public abstract class List<A> {
@@ -233,7 +233,7 @@ public abstract class List<A> {
 }
 ```
 
-Every allowable symbol in Scala's method syntax has a corresponding translation of the form "`$` _trans_ ".  A list of supported translations is one of those pieces of documentation that you would expect to find on the Scala website.  However, alas, it is absent.  The following is a table of all of the translations of which I am aware:
+Every allowable symbol in Scala's method syntax has a corresponding translation of the form "`$` _trans_ ".  A list of supported translations is one of those pieces of documentation that you would expect to find on the Scala website.  However, alas, it is absent.  The following is a table of all of the translations of which I am aware:
 
 **Scala Operator** | **Compiles To**  
 ---|---  
@@ -256,11 +256,11 @@ Every allowable symbol in Scala's method syntax has a corresponding translation 
 `\` | `$bslash`  
 `:` | `$colon`  
   
-Using this table, you should be able to derive the "real name" of any Scala operator, allowing its use from within Java.  Of course, the idea solution would be if Java actually supported operator overloading and could use Scala's operators directly, but somehow I doubt that will happen any time soon.
+Using this table, you should be able to derive the "real name" of any Scala operator, allowing its use from within Java.  Of course, the idea solution would be if Java actually supported operator overloading and could use Scala's operators directly, but somehow I doubt that will happen any time soon.
 
 ### Odds and Ends
 
-One final tidbit which might be useful: `@BeanProperty`.  This is a special annotation which is essentially read by the Scala compiler to mean "generate a getter and setter for this field":
+One final tidbit which might be useful: `@BeanProperty`.  This is a special annotation which is essentially read by the Scala compiler to mean "generate a getter and setter for this field":
 
 ```scala
 import scala.reflect.BeanProperty
@@ -288,9 +288,9 @@ public class Person {
 }
 ```
 
-This works well from Scala, but as you can see, Java-land is not quite paradise.  While it is certainly feasible to use the `_$eq` syntax instead of the familiar `set`/`get`/`is` triumvirate, it is not an ideal situation.
+This works well from Scala, but as you can see, Java-land is not quite paradise.  While it is certainly feasible to use the `_$eq` syntax instead of the familiar `set`/`get`/`is` triumvirate, it is not an ideal situation.
 
-Adding the `@BeanProperty` annotation (as we have done in the earlier Scala snippet) solves this problem by causing the Scala compiler to auto-generate more than one pair of methods for that particular field.  Rather than just `value` and `value_$eq`, it will also generate the familiar `getValue` and `setValue` combination that all Java developers will know and love.  Thus, the actual translation resulting from the `Person` class in Scala will be as follows:
+Adding the `@BeanProperty` annotation (as we have done in the earlier Scala snippet) solves this problem by causing the Scala compiler to auto-generate more than one pair of methods for that particular field.  Rather than just `value` and `value_$eq`, it will also generate the familiar `getValue` and `setValue` combination that all Java developers will know and love.  Thus, the actual translation resulting from the `Person` class in Scala will be as follows:
 
 ```java
 public class Person {
@@ -318,6 +318,6 @@ This merely provides a pair of delegates, but it does suffice to smooth out the 
 
 ### Conclusion
 
-This has been a whirlwind, disjoint tour covering a fairly large slice of information on how to use Scala code from within Java.  For the most part, things are all roses and fairy tales.  Scala classes map precisely onto Java classes, generics work perfectly, and pure-abstract traits correspond directly to Java interfaces.  Other areas where Scala is decidedly more powerful than Java (like operators) do tend to be a bit sticky, but there is _always_ a way to make things work.
+This has been a whirlwind, disjoint tour covering a fairly large slice of information on how to use Scala code from within Java.  For the most part, things are all roses and fairy tales.  Scala classes map precisely onto Java classes, generics work perfectly, and pure-abstract traits correspond directly to Java interfaces.  Other areas where Scala is decidedly more powerful than Java (like operators) do tend to be a bit sticky, but there is _always_ a way to make things work.
 
-If you're considering mixing Scala and Java sources within your project, I hope that this article has smoothed over some of the doubts you may have had regarding its feasibility.  As David Pollack says, Scala is really "just another Java library".  Just stick `scala-library.jar` on your classpath and all of your Scala classes should be readily available within your Java application.  And given how well Scala integrates with Java at the language level, what could be simpler?
+If you're considering mixing Scala and Java sources within your project, I hope that this article has smoothed over some of the doubts you may have had regarding its feasibility.  As David Pollack says, Scala is really "just another Java library".  Just stick `scala-library.jar` on your classpath and all of your Scala classes should be readily available within your Java application.  And given how well Scala integrates with Java at the language level, what could be simpler?

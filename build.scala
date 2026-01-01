@@ -145,7 +145,7 @@ object Build extends IOApp:
 
           // Generate AST blocks
           val blocks = postsByYear.flatMap { (year, yearPosts) =>
-            val yearHeader = Header(2, Seq(Text(year.toString)))
+            val yearHeader = RawContent(cats.data.NonEmptySet.of("html"), s"""<h2 id="year-$year">$year</h2>""")
             val postBlocks = yearPosts.map { post =>
               Paragraph(Seq(
                 SpanLink.internal(post.path)(post.title),
@@ -169,9 +169,6 @@ object Build extends IOApp:
   // Use a custom theme - templates and CSS are provided in src/templates and src/theme
   val codeCommitTheme = Theme.empty
 
-  // Use lenient message handling - don't fail on warnings/errors, don't render them
-  val lenientFilters = MessageFilters.custom(MessageFilter.None, MessageFilter.None)
-
   def transformer(highlighter: Highlighter) = Transformer
     .from(Markdown)
     .to(HTML)
@@ -180,7 +177,6 @@ object Build extends IOApp:
     .using(BlogIndexDirective)
     .using(PrettyURLs)
     .withRawContent
-    .withMessageFilters(lenientFilters)
     .parallel[IO]
     .withTheme(codeCommitTheme)
     .build

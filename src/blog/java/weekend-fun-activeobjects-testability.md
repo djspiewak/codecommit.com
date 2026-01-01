@@ -6,7 +6,7 @@ laika.metadata.date = "2008-05-18"
 
 # Weekend Fun: ActiveObjects Testability
 
-I'm not entirely sure what [these metrics](<http://code.google.com/p/testability-explorer>) mean, but they give me a warm feeling inside.  :-)
+I'm not entirely sure what [these metrics](<http://code.google.com/p/testability-explorer>) mean, but they give me a warm feeling inside.  :-)
 
 ```
 Analyzed classes:   136
@@ -64,4 +64,4 @@ net.java.ao.schema.AbstractFieldNameConverter 28
 net.java.ao.SoftHashMap$HashIterator 20
 ```
 
-Most of the badness seems to stem from `EntityManager`, which makes a lot of sense given the way it is designed.  `EntityProxy` also poses issues, but in practice this isn't a real problem because of how extensive the JUnit tests are for just this class.  Overall, ActiveObjects testability isn't anywhere near to the [Guice score](<http://www.testabilityexplorer.org/report/guice/guice/1.0>), but it's not as horrible as [JRuby](<http://www.testabilityexplorer.org/report/jruby/jruby/0.9.8>).
+Most of the badness seems to stem from `EntityManager`, which makes a lot of sense given the way it is designed.  `EntityProxy` also poses issues, but in practice this isn't a real problem because of how extensive the JUnit tests are for just this class.  Overall, ActiveObjects testability isn't anywhere near to the [Guice score](<http://www.testabilityexplorer.org/report/guice/guice/1.0>), but it's not as horrible as [JRuby](<http://www.testabilityexplorer.org/report/jruby/jruby/0.9.8>).

@@ -456,7 +456,7 @@ def doAndMultiply(by: Int)(f: (Int)=>Int) = {
 }
 ```
 
-Simply put, this method takes two [curried parameters](<http://www.codecommit.com/blog/scala/function-currying-in-scala>), an `Int` along with a function value taking another `Int` and returning an `Int`.  This method then returns a new function which itself takes an `Int`, first multiplies it by the original first `Int` parameter, then applies the given function to the result. Got all that? :-)
+Simply put, this method takes two [curried parameters](<http://www.codecommit.com/blog/scala/function-currying-in-scala>), an `Int` along with a function value taking another `Int` and returning an `Int`.  This method then returns a new function which itself takes an `Int`, first multiplies it by the original first `Int` parameter, then applies the given function to the result. Got all that? :-)
 
 We can call this function from Scala in the following way:
 
