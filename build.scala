@@ -9,6 +9,7 @@ import cats.syntax.all.*
 import fs2.Stream
 import fs2.io.file.{Files, Path, CopyFlag, CopyFlags}
 import laika.api.*
+import laika.api.bundle.*
 import laika.format.*
 import laika.io.syntax.*
 import laika.config.*
@@ -16,14 +17,96 @@ import laika.ast.Path.Root
 import laika.ast.*
 import laika.helium.Helium
 import laika.helium.config.*
-import laika.config.SyntaxHighlighting
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
 import com.comcast.ip4s.*
 import java.time.LocalDate
+import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
+import java.nio.charset.StandardCharsets
+import cats.data.NonEmptySet
 
 object Build extends IOApp:
+
+  // Path to the syntect-based highlighter binary
+  val highlighterBin = "highlighter/target/release/highlighter"
+
+  def escapeHtml(s: String): String =
+    s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+  // Escape for JSON string value
+  def jsonEscape(s: String): String =
+    s.replace("\\", "\\\\")
+      .replace("\"", "\\\"")
+      .replace("\n", "\\n")
+      .replace("\r", "\\r")
+      .replace("\t", "\\t")
+
+  // Long-running highlighter process wrapper
+  class Highlighter extends AutoCloseable:
+    private val process = new ProcessBuilder(highlighterBin).start()
+    private val writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream, StandardCharsets.UTF_8))
+    private val reader = new BufferedReader(new InputStreamReader(process.getInputStream, StandardCharsets.UTF_8))
+
+    def highlight(language: String, code: String): String =
+      synchronized {
+        // Send JSON request
+        val request = s"""{"language":"${jsonEscape(language)}","code":"${jsonEscape(code)}"}"""
+        writer.write(request)
+        writer.newLine()
+        writer.flush()
+
+        // Read JSON response
+        val response = reader.readLine()
+        if response == null then
+          s"""<pre><code class="$language">${escapeHtml(code)}</code></pre>"""
+        else
+          // Extract html field from {"html":"..."}
+          val htmlStart = response.indexOf("\"html\":\"") + 8
+          val htmlEnd = response.lastIndexOf("\"}")
+          if htmlStart > 7 && htmlEnd > htmlStart then
+            response.substring(htmlStart, htmlEnd)
+              .replace("\\n", "\n")
+              .replace("\\\"", "\"")
+              .replace("\\\\", "\\")
+          else
+            s"""<pre><code class="$language">${escapeHtml(code)}</code></pre>"""
+      }
+
+    def close(): Unit =
+      writer.close()
+      reader.close()
+      process.destroy()
+
+  // Global highlighter instance (started lazily, used during build)
+  private var _highlighter: Highlighter = null
+  
+  def getHighlighter(): Highlighter =
+    synchronized {
+      if _highlighter == null then
+        _highlighter = new Highlighter()
+      _highlighter
+    }
+  
+  def closeHighlighter(): Unit =
+    synchronized {
+      if _highlighter != null then
+        _highlighter.close()
+        _highlighter = null
+    }
+
+  // Extension bundle for syntect highlighting using render overrides
+  object SyntectHighlighting extends ExtensionBundle:
+    val description = "Syntect-based syntax highlighting"
+    
+    override def renderOverrides: Seq[RenderOverrides] = Seq(
+      HTML.Overrides {
+        case (_, cb: CodeBlock) =>
+          val language = cb.language
+          val code = cb.extractText
+          getHighlighter().highlight(language, code)
+      }
+    )
 
   val outputDir = "_site"
   val srcDir = Path("src")
@@ -137,7 +220,7 @@ laika.title = "Blog"
     .from(Markdown)
     .to(HTML)
     .using(Markdown.GitHubFlavor)
-    .using(SyntaxHighlighting)
+    .using(SyntectHighlighting)
     .withRawContent
     .withMessageFilters(lenientFilters)
     .parallel[IO]
@@ -150,7 +233,8 @@ laika.title = "Blog"
       t.fromDirectory("src")
         .toDirectory(outputDir)
         .transform
-    }.void *> convertToCleanUrls(Path(outputDir))
+    }.void *> convertToCleanUrls(Path(outputDir)) *>
+    IO(closeHighlighter())
 
   def serve(port: Port): IO[Unit] =
     val routes = Router("/" -> fileService[IO](FileService.Config(outputDir))).orNotFound

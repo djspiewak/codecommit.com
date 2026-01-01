@@ -5,6 +5,9 @@ _site/
 .scala-build/
 .bsp/
 
+# Rust build artifacts
+highlighter/target/
+
 # Old Jekyll artifacts (can be removed)
 .sass-cache/
 .jekyll-cache/
