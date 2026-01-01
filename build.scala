@@ -17,11 +17,73 @@ import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
 import com.comcast.ip4s.*
 import java.nio.file.{Files, Path as JPath, StandardCopyOption}
+import java.time.LocalDate
 import scala.jdk.CollectionConverters.*
+import scala.util.matching.Regex
 
 object Build extends IOApp:
 
   val outputDir = "_site"
+  val srcDir = JPath.of("src")
+  val blogDir = srcDir.resolve("blog")
+
+  case class BlogPost(title: String, date: LocalDate, category: String, slug: String):
+    def url: String = s"/blog/$category/$slug"  // Absolute path, clean URL
+
+  // Parse a blog post file to extract metadata
+  def parsePost(file: JPath): Option[BlogPost] =
+    val content = Files.readString(file)
+    val titlePattern = """laika\.title\s*=\s*"([^"]+)"""".r
+    val datePattern = """laika\.metadata\.date\s*=\s*"(\d{4}-\d{2}-\d{2})"""".r
+    
+    for
+      titleMatch <- titlePattern.findFirstMatchIn(content)
+      dateMatch <- datePattern.findFirstMatchIn(content)
+    yield
+      val title = titleMatch.group(1)
+      val date = LocalDate.parse(dateMatch.group(1))
+      val category = file.getParent.getFileName.toString
+      val slug = file.getFileName.toString.stripSuffix(".md")
+      BlogPost(title, date, category, slug)
+
+  // Scan blog directory for all posts
+  def scanPosts: IO[List[BlogPost]] = IO {
+    Files.walk(blogDir).iterator().asScala.toList
+      .filter(p => Files.isRegularFile(p) && p.toString.endsWith(".md"))
+      .filterNot(p => p.getFileName.toString == "index.md")
+      .flatMap(parsePost)
+      .sortBy(_.date)(Ordering[LocalDate].reverse)
+  }
+
+  // Generate blog index markdown with raw HTML links
+  def generateBlogIndex(posts: List[BlogPost]): String =
+    val header = """{%
+laika.title = "Blog"
+%}
+
+# Blog
+
+"""
+    val postsByYear = posts.groupBy(_.date.getYear).toList.sortBy(-_._1)
+    val postList = postsByYear.map { (year, yearPosts) =>
+      val yearHeader = s"## $year\n\n"
+      val links = yearPosts.map { post =>
+        val escapedTitle = post.title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        s"""<p><a href="${post.url}">$escapedTitle</a> — ${post.date}</p>"""
+      }.mkString("\n")
+      yearHeader + links
+    }.mkString("\n\n")
+    
+    header + postList + "\n"
+
+  // Write blog index before build
+  def writeBlogIndex: IO[Unit] =
+    scanPosts.flatMap { posts =>
+      IO {
+        val indexContent = generateBlogIndex(posts)
+        Files.writeString(blogDir.resolve("index.md"), indexContent)
+      }
+    }
 
   // Convert slug.html to slug/index.html for clean URLs
   def convertToCleanUrls(dir: JPath): IO[Unit] = IO {
@@ -69,6 +131,7 @@ object Build extends IOApp:
     .build
 
   def build: IO[Unit] =
+    writeBlogIndex *>
     transformer.use { t =>
       t.fromDirectory("src")
         .toDirectory(outputDir)
