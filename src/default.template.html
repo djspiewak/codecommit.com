@@ -37,13 +37,23 @@
     </nav>
   </header>
 
-  <nav id="sidebar">
-    @:navigationTree {
-      entries = [
-        { target = "/", excludeRoot = true, excludeSections = true, depth = 2 }
-      ]
-    }
-  </nav>
+  <aside id="sidebar">
+    <div class="sidebar-profile">
+      <img src="@:target(/theme/profile.jpg)" alt="Daniel Spiewak" class="profile-photo"/>
+    </div>
+    <div class="sidebar-bio">
+      <p>Daniel Spiewak is a software engineer based out of Chicago, IL. Over the years, he has worked with Scala, Java, Ruby, Go, Haskell, C/C++, SML, Clojure, and countless other languages, covering topics ranging from type theory, compiler and language design, globally distributed systems, JVM optimization, large-scale AI data infrastructure, data structures, OLAP and OLTP databases, mechanical sympathy, and much more. He currently spends most of his free time maintaining the Cats Effect project and continuing to push the boundaries of what is possible at the intersection of mathematical reasoning and highly scalable production implementations.</p>
+    </div>
+    <nav class="sidebar-categories">
+      <h3>Categories</h3>
+      <ul>
+        <li><a href="@:target(/blog/java/index.md)">Java</a></li>
+        <li><a href="@:target(/blog/scala/index.md)">Scala</a></li>
+        <li><a href="@:target(/blog/ruby/index.md)">Ruby</a></li>
+        <li><a href="@:target(/blog/eclipse/index.md)">Eclipse</a></li>
+      </ul>
+    </nav>
+  </aside>
 
   <div id="container">
 
