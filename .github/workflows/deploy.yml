@@ -21,6 +21,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            highlighter/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('highlighter/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Cache Coursier
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.local/share/coursier
+          key: ${{ runner.os }}-coursier-${{ hashFiles('build.scala') }}
+          restore-keys: |
+            ${{ runner.os }}-coursier-
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
