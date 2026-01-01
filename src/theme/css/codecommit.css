@@ -255,12 +255,14 @@ a:active {
   margin: 0;
 }
 
-.sidebar-categories a {
-  display: block;
+.sidebar-categories li {
   padding: 8px 0;
+  border-bottom: 1px solid rgba(200, 199, 183, 0.5);
+}
+
+.sidebar-categories a {
   color: var(--primary-color);
   font-size: 0.9rem;
-  border-bottom: 1px solid rgba(200, 199, 183, 0.5);
 }
 
 .sidebar-categories a:visited {
@@ -272,8 +274,13 @@ a:active {
   text-decoration: none;
 }
 
-.sidebar-categories li:last-child a {
+.sidebar-categories li:last-child {
   border-bottom: none;
+}
+
+.sidebar-categories .category-count {
+  color: var(--text-muted);
+  font-size: 0.85em;
 }
 
 /* ===== Container Layout ===== */
