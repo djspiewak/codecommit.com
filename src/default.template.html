@@ -18,22 +18,20 @@
 <body>
 
   <header id="top-bar">
-    <div class="header-inner">
-      <a class="logo" href="@:target(/index.md)">
-        <img src="@:target(/theme/code-commit.png)" alt="Code Commit"/>
-      </a>
+    <button id="nav-icon" aria-label="Toggle navigation">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
 
-      <nav class="top-nav">
-        <a href="@:target(/about.md)">About</a>
-        <a href="@:target(/blog/index.md)">Blog</a>
-      </nav>
+    <a class="logo" href="@:target(/index.md)">
+      <img src="@:target(/theme/code-commit.png)" alt="Code Commit"/>
+    </a>
 
-      <button id="nav-icon" aria-label="Toggle navigation">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </div>
+    <nav class="top-nav">
+      <a href="@:target(/about.md)">About</a>
+      <a href="@:target(/blog/index.md)">Blog</a>
+    </nav>
   </header>
 
   <nav id="sidebar">
