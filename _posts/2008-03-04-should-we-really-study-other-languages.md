@@ -20,7 +20,72 @@ I must admit, I used to be a card-carrying member of the "one language per year"
 
 You may laugh (I did), but I can't tell you how much code I've had to work with which reminds me of this tale.  Developers these days pick up patterns and best-practices from dozens of languages and try to apply them to a language for which they are ill suited.  Consider the following code:
 
-```java public class SortUtils { public static  List mergeSort(final List list) { return new Object() { private final List[] divided = divide(list); public List run() { return merge(mergeSort(divided[0]), mergeSort(divided[1])); } }.run(); } public static  List[] divide(final List list) { if (list.size() == 0) { return new List[] {new ArrayList(), new ArrayList()}; } else if (list.size() == 1) { return new List[] {list, new ArrayList()}; } else { return new Object() { // this part doesn't really work, it's just illustrative private final T first = list.remove(); private final T second = list.remove(); private final List[] sub = divide(list); public List[] run() { return new List[] {new ArrayList() { { addAll(sub[0]); add(first); } }, new ArrayList() { { addAll(sub[1]); add(second); } }}; } }.run(); } } public static  List merge(final List left, final List right) { if (left.size() == 0) { return right; } else if (right.size() == 0) { return left; } else { if (left.get(0) < right.get(0)) { return new ArrayList() { { add(left.remove(0)); addAll(merge(left, right)); } }; } else { return new ArrayList() { { add(right.remove(0)); addAll(merge(left, right)); } }; } } } } ``` 
+```java
+public class SortUtils {
+    public static <T> List<T> mergeSort(final List<T> list) {
+        return new Object() {
+            private final List<T>[] divided = divide(list);
+            
+            public List<T> run() {
+                return merge(mergeSort(divided[0]), mergeSort(divided[1]));
+            }
+        }.run();
+    }
+    
+    public static <T> List<T>[] divide(final List<T> list) {
+        if (list.size() == 0) {
+            return new List<T>[] {new ArrayList<T>(), new ArrayList<T>()};
+        } else if (list.size() == 1) {
+            return new List<T>[] {list, new ArrayList<T>()};
+        } else {
+            return new Object() {
+                // this part doesn't really work, it's just illustrative
+                private final T first = list.remove();
+                private final T second = list.remove();
+                private final List<T>[] sub = divide(list);
+                
+                public List<T>[] run() {
+                    return new List<T>[] {new ArrayList<T>() {
+                        {
+                            addAll(sub[0]);
+                            add(first);
+                        }
+                    }, new ArrayList<T>() {
+                        {
+                            addAll(sub[1]);
+                            add(second);
+                        }
+                    }};
+                }
+            }.run();
+        }
+    }
+    
+    public static <T> List<T> merge(final List<T> left, final List<T> right) {
+        if (left.size() == 0) {
+            return right;
+        } else if (right.size() == 0) {
+            return left;
+        } else {
+            if (left.get(0) < right.get(0)) {
+                return new ArrayList<T>() {
+                    {
+                        add(left.remove(0));
+                        addAll(merge(left, right));
+                    }
+                };
+            } else {
+                return new ArrayList<T>() {
+                    {
+                        add(right.remove(0));
+                        addAll(merge(left, right));
+                    }
+                };
+            }
+        }
+    }
+}
+```
 
 I know what you're thinking: Whoever wrote this is a sick, sick programmer.  Actually I wrote it, but that's beside the point...  :-)
 

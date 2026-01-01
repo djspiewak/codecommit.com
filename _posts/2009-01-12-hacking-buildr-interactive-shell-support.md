@@ -24,13 +24,19 @@ Further complicating affairs is the fact that many projects do away with the not
 
 For this reason, I strongly believe that the launch of an interactive shell should be the responsibility of the tool managing the dependencies, rather than that of the developer.  Note that Maven already has some support for shells in conjunction with certain languages (Scala among them), but it is as crude and verbose as the tool itself.  What I really want is to be able to invoke the following command and have the appropriate shell launched with a pre-configured CLASSPATH.  I shouldn't have to worry about the language of my project, the location of my repository or even if the shell requires extra configuration on my platform.  The idea is that everything should all work auto-magically:
 
-``` $ buildr shell ``` 
+```
+$ buildr shell
+```
 
 This is exactly what the [`interactive-shell` branch of my Buildr fork](<http://github.com/djspiewak/buildr/tree/interactive-shell>) is designed to accomplish.  Whenever the `shell` task is invoked, Buildr looked through the current project and attempts to guess the language involved.  This guesswork is required for a number of other features, so Buildr is actually pretty accurate in this area.  If the language in question is Groovy or Scala, then the desired shell is obvious.  Java does not have an integrated shell, which means that the default behavior on a Java project would be to raise an error.
 
 However, the benefits of interactive shells are not limited to just the latest-and-greatest languages.  I often use a Scala shell with Java projects, and for certain things a JRuby shell as well (`jirb`).  Thus, my interactive shell extension also provides a mechanism to allow users to override the default shell on a per-project basis:
 
-```ruby define 'my-project' do shell.using :clj end ``` 
+```ruby
+define 'my-project' do
+  shell.using :clj
+end
+```
 
 With this configuration, regardless of the language used by the compiler for "my-project", Buildr will launch the Clojure REPL whenever the `shell` task is invoked.  The currently supported shells and their corresponding Buildr identifiers:
 
@@ -41,7 +47,9 @@ With this configuration, regardless of the language used by the compiler for "my
 
 It is also possible to explicitly launch a specific shell.  This is useful for situations where you might want to use the Scala shell for testing some things and the JRuby IRB for quickly prototyping other ideas (I do this a lot).  The command to launch the JIRB shell in the context of `my-project` would be as follows:
 
-``` $ buildr my-project:shell:jirb ``` 
+```
+$ buildr my-project:shell:jirb
+```
 
 As a special value-added feature, all of these shells (except for Groovy's, which is weird) will be automatically configured to use JavaRebel for the project compilation target classes if it can be automatically detected.  This detection is performed by examining `REBEL_HOME`, `JAVA_REBEL`, `JAVAREBEL` and `JAVAREBEL_HOME` environment variables in order.  If any one of these points to a directory which contains `javarebel.jar` or points directly to `javarebel.jar` itself, the configuration is assumed and the respective shell invocation is appropriately modified.
 
@@ -57,7 +65,9 @@ The question revolves around what the exact behavior should be when the `shell` 
 
 Additionally, what should the exact syntax be for invoking a specific shell?  Rake 0.8 allows tasks to take parameters enclosed within square brackets.  Thus, the syntax would be something more like the following:
 
-``` $ buildr collection:shell[jirb] ``` 
+```
+$ buildr collection:shell[jirb]
+```
 
 In some sense, this is more logical since it reflects the fact that a single task, `shell`, is taking care of the work of invoking stuff.  On the other hand, it's a little less consistent with the rest of Buildr's tasks, particularly things like "`test:TestClass`" and so on.  This too is a matter which has yet to be settled.
 

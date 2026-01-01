@@ -12,11 +12,104 @@ Well, by popular demand on the [first post](<http://blogs.dzone.com/daniel/2007/
 
 ### SaveableEntity
 
-_SaveableEntity_ is an interface which extends the _Entity_ super-interface designed to overcome the inherent performance drawbacks in a simple getter/setter model ORM. For example, suppose we have the following trivial Entity interface: ```java public interface Person extends Entity { public String getFirstName(); public void setFirstName(String firstName); public String getLastName(); public void setLastName(String lastName); } ``` We could use this entity in the following way: ```java private void initializePerson(EntityManager em, String name) throws SQLException { String[] names = name.split(' '); Person p = em.create(Person.class); p.setFirstName(names[0]); p.setLastName(names[1]); } ``` This is all well and good, until we look at the actual SQL being executed by this code: ``` INSERT INTO person (id) VALUES (DEFAULT); UPDATE person SET firstName = ? WHERE id = ?; UPDATE person SET lastName = ? WHERE id = ?; ``` These are executed as separate PreparedStatement(s), under separate connections, totally unconnected. If we didn't include a pooling library in the classpath, the connections wouldn't be pooled and we would incur a significant performance hit from this sort of thing. Enter _SaveableEntity_. _SaveableEntity_ prevents the setters from immediately executing their respective UPDATE statements. Rather, the UPDATEs are held in reserve until the _save()_ method is invoked. Here's the above example rewritten to use SaveableEntity: ```java public interface Person extends SaveableEntity { public String getFirstName(); public void setFirstName(String firstName); public String getLastName(); public void setLastName(String lastName); } private void initializePerson(EntityManager em, String name) throws SQLException { String[] names = name.split(' '); Person p = em.create(Person.class); p.setFirstName(names[0]); p.setLastName(names[1]); p.save(); } ``` Only one more line of Java code, but it diminishes the SQL executed by 30%: ```sql INSERT INTO person (id) VALUES (DEFAULT); UPDATE person SET firstName = ?,lastName = ? WHERE id = ?; ``` This might not seem like such a big deal when you're only working with single and duel fielded entities, but when you get into far more complex models - say, on the order of 30-40 fields - it makes a big difference if UPDATEs are merged where possible. 
+_SaveableEntity_ is an interface which extends the _Entity_ super-interface designed to overcome the inherent performance drawbacks in a simple getter/setter model ORM. For example, suppose we have the following trivial Entity interface: 
+
+```java
+public interface Person extends Entity {
+    public String getFirstName();
+    public void setFirstName(String firstName);
+
+    public String getLastName();
+    public void setLastName(String lastName);
+}
+```
+
+We could use this entity in the following way: 
+
+```java
+private void initializePerson(EntityManager em, String name) throws SQLException {
+    String[] names = name.split(' ');
+
+    Person p = em.create(Person.class);
+    p.setFirstName(names[0]);
+    p.setLastName(names[1]);
+}
+```
+
+This is all well and good, until we look at the actual SQL being executed by this code: 
+
+```
+INSERT INTO person (id) VALUES (DEFAULT);
+UPDATE person SET firstName = ? WHERE id = ?;
+UPDATE person SET lastName = ? WHERE id = ?;
+```
+
+These are executed as separate PreparedStatement(s), under separate connections, totally unconnected. If we didn't include a pooling library in the classpath, the connections wouldn't be pooled and we would incur a significant performance hit from this sort of thing. Enter _SaveableEntity_. _SaveableEntity_ prevents the setters from immediately executing their respective UPDATE statements. Rather, the UPDATEs are held in reserve until the _save()_ method is invoked. Here's the above example rewritten to use SaveableEntity: 
+
+```java
+public interface Person extends SaveableEntity {
+    public String getFirstName();
+    public void setFirstName(String firstName);
+
+    public String getLastName();
+    public void setLastName(String lastName);
+}
+
+private void initializePerson(EntityManager em, String name) throws SQLException {
+    String[] names = name.split(' ');
+
+    Person p = em.create(Person.class);
+    p.setFirstName(names[0]);
+    p.setLastName(names[1]);
+    p.save();
+}
+```
+
+Only one more line of Java code, but it diminishes the SQL executed by 30%: 
+
+```sql
+INSERT INTO person (id) VALUES (DEFAULT);
+UPDATE person SET firstName = ?,lastName = ? WHERE id = ?;
+```
+
+This might not seem like such a big deal when you're only working with single and duel fielded entities, but when you get into far more complex models - say, on the order of 30-40 fields - it makes a big difference if UPDATEs are merged where possible. 
 
 ### Implementations
 
-So on a swift turn round another tack, we're now going to look at defined implementations in ActiveObjects and how they are both a) a major pain you-know-where, and b) incredibly useful. As was pointed out in a [comment](<http://blogs.dzone.com/daniel/2007/07/18/an-easier-java-orm/#comment-2192>) on my last post, ActiveObjects as I have presented it so far is just a data wrapping layer. It just allows simple database access. No frills, and no model-specific business logic. This actually poses a bit of a problem in many senarios. For example, let's assume you have a basic, user-based authentication system. Each user has a username and a password. However, authentication best practice says not to store the password in clear-text in the database. In fact, it's best to hash the password when it is stored to prevent _anyone_ from decrypting it. The problem comes in that ActiveObjects doesn't allow us to do something like that in its current form. You'd have to do all the hashing prior to calling User#setPassword(String), and that would be majorly painful and about as unDRY as it gets. The solution: defined implementations. ```java @Implementation(UserImpl.class) public interface User extends SaveableEntity { public String getUsername(); public void setUsername(String username); public String getPassword(); public void setPassword(String password); } public class UserImpl { private User user; public UserImpl(User user) { this.user = user; } public void setPassword(String password) { user.setPassword(Utilities.md5sum(password)); } } // ... User u = em.create(User.class); u.setUsername("daniel"); u.setPassword("password"); u.save(); System.out.println(u.getPassword()); // prints the MD5 hashed value of "password" ``` See what I mean about a major pain? It's not exactly clear what's going on here so I'll give you a brief run-down: 
+So on a swift turn round another tack, we're now going to look at defined implementations in ActiveObjects and how they are both a) a major pain you-know-where, and b) incredibly useful. As was pointed out in a [comment](<http://blogs.dzone.com/daniel/2007/07/18/an-easier-java-orm/#comment-2192>) on my last post, ActiveObjects as I have presented it so far is just a data wrapping layer. It just allows simple database access. No frills, and no model-specific business logic. This actually poses a bit of a problem in many senarios. For example, let's assume you have a basic, user-based authentication system. Each user has a username and a password. However, authentication best practice says not to store the password in clear-text in the database. In fact, it's best to hash the password when it is stored to prevent _anyone_ from decrypting it. The problem comes in that ActiveObjects doesn't allow us to do something like that in its current form. You'd have to do all the hashing prior to calling User#setPassword(String), and that would be majorly painful and about as unDRY as it gets. The solution: defined implementations. 
+
+```java
+@Implementation(UserImpl.class)
+public interface User extends SaveableEntity {
+    public String getUsername();
+    public void setUsername(String username);
+
+    public String getPassword();
+    public void setPassword(String password);
+}
+
+public class UserImpl {
+    private User user;
+
+    public UserImpl(User user) {
+        this.user = user;
+    }
+
+    public void setPassword(String password) {
+        user.setPassword(Utilities.md5sum(password));
+    }
+}
+
+// ...
+User u = em.create(User.class);
+u.setUsername("daniel");
+u.setPassword("password");
+u.save();
+
+System.out.println(u.getPassword());   // prints the MD5 hashed value of "password"
+```
+
+See what I mean about a major pain? It's not exactly clear what's going on here so I'll give you a brief run-down: 
 
   * EntityManager instantiates a dynamic interface proxy for the User interface and returns it (where it assigned to _u_ ). It sees the @Implementation annotation and looks in the class for an init() method. Not finding one, it moves on.
   * setUsername(String) is invoked on the dynamic proxy. An @Implementation annotation on the interface is detected and the class in question is instantiated, passing the User instance into the constructor. The proxy looks for a setUsername(String) method within the implementation class and doesn't find one. The method is invoked normally, caching the String username for future UPDATE into the database.

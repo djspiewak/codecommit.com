@@ -12,7 +12,14 @@ There's a consistent problem with developing applications of any reasonable size
 
 So from very early on, developers have been writing tools to aid in the build process.  Some of these tools (most of them) were somewhat ad hoc and specialized.  The most common example which springs to mind is a simple script, which handles the compilation:
 
-```bash #!/bin/sh for f in *.c; do name=`echo $f | sed 's/.c//'` gcc -Wall -o ${name}.o ${name}.c done ``` 
+```bash
+#!/bin/sh
+
+for f in *.c; do
+  name=`echo $f | sed 's/.c//'`
+  gcc -Wall -o ${name}.o ${name}.c
+done
+```
 
 The limitations of such an approach should be obvious.  For one thing, you can only use this script on a single directory which contains all source files.  This is very rarely the case.  More importantly, there is no linking or dependency checking taking place.  This means that with the exception of very simple applications, this script will outright fail every time.  Of course, you could modify the script extensively to hard-code the dependency information, check for file modification, etc.  However, this would be a long, dull process which would have to be repeated for every application you write.  Not a very productive way to spend your time.
 

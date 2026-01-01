@@ -28,11 +28,20 @@ As it turns out, there's a very logical reason for having these separated and se
 
 Of course, this still leaves the `immutable` and `mutable` packages. This distinction traces back to some of Scala's functional roots. As you are likely aware, Scala supports both mutable and immutable variables, as denoted by the `var` and `val` keywords, respectively. While there are some significant differences at compile-time, conceptually, the only distinction between these two types is the former allows reassignment whereas the latter does not. Mutable variables are a common - and indeed, essential - feature in imperative languages (Java, C++, Ruby, etc). For example, here's how we would sum an array of integers in Java:
 
-```java int[] numbers = ... int sum = 0; for (int n : numbers) { sum += n; // reassign sum to accumulate n } ``` 
+```java
+int[] numbers = ...
+
+int sum = 0;
+for (int n : numbers) {
+    sum += n;   // reassign sum to accumulate n
+}
+```
 
 In this case, `sum` is a mutable variable which accumulates the total value of all numbers in the array, `numbers`. Theoretical disputes aside, this style of programming is simply impossible in certain languages. For example, SML provides no mechanism for declaring mutable variables. So if we want to sum the values in a list of ints, we have to do it in some other way (code provided for the curious):
 
-```ml fun sumList ls = foldl (op +) 0 ls ``` 
+```ml
+fun sumList ls = foldl (op +) 0 ls
+```
 
 In Scala, both of these techniques are available to us. However, despite providing for mutable state, Scala does _encourage_ developers to avoid it. The reasoning behind this is that mutable state has a tendency to make code more difficult to reason about, making testing much harder. Also, as any experienced developer will tell you, mutable state _kills_ concurrency.
 
@@ -40,7 +49,19 @@ Not only does Scala encourage the use of immutable variables, it also encourages
 
 Naturally, immutable collections require very different patterns and idioms than those which are mutable. My ML code from above illustrates this to a very small degree, using a fold to traverse an immutable list. As a general rule, immutable data structures are only useful when being passed around via method calls. A common pattern is to build up a data structure recursively, creating a new instance with one more element at each invocation:
 
-```scala def toSet[T](list: List[T]) = { def traverse(list: List[T])(set: Set[T]): Set[T] = list match { case hd :: tail => traverse(tail)(set + hd) // create a new Set, adding hd case Nil => set } traverse(list)(Set[T]()) } val names = List("Daniel", "Chris", "Joseph", "Renee") val nameSet = toSet(names) ``` 
+```scala
+def toSet[T](list: List[T]) = {
+  def traverse(list: List[T])(set: Set[T]): Set[T] = list match {
+    case hd :: tail => traverse(tail)(set + hd)   // create a new Set, adding hd
+    case Nil => set
+  }
+
+  traverse(list)(Set[T]())
+}
+
+val names = List("Daniel", "Chris", "Joseph", "Renee")
+val nameSet = toSet(names)
+```
 
 At each recursive invocation of `traverse`, a new `Set` is created, based on the contents of the old one, `set`, but with one additional member, `hd`. At the same time, we are deconstructing an immutable `List`, `list`, selecting its first element and whatever remains at each step. Whenever you work with immutable data structures, you will see a lot of code which looks like this.
 

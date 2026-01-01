@@ -13,17 +13,97 @@ In recent years, we have seen a dramatic rise in the number of languages used in
 
 Let's take Scala as an example.  Of all of the JVM languages, this one probably has the potential for the tightest integration with Java.  Even Groovy, which is renowned for its integration, still falls short in many key areas.  (generics, anyone?)  With Scala, every class is a Java class, every method is a Java method, and there is no API which cannot be accessed from Java as natively as any other.  For example, I can write a simple linked list implementation in Scala and then use it in Java without any fuss whatsoever ( **warning:** untested sample):
 
-```scala class LinkedList[T] { private var root: Node = _ def add(data: T) = { val insert = Node(data, null) if (root == null) { root = insert } else { root.next = insert } this } def get(index: Int) = { def walk(node: Node, current: Int): T = { if (node == null) { throw new IndexOutOfBoundsException(index.toString) } if (current < index) { walk(node.next, current + 1) } else { node.data } } if (index < 0) { throw new IndexOutOfBoundsException(index.toString) } walk(root, 0) } def size = { def walk(node: Node): Int = if (node == null) 0 else 1 + walk(node.next) walk(root) } private case class Node(data: T, var next: Node) } ``` 
+```scala
+class LinkedList[T] {
+  private var root: Node = _
+  
+  def add(data: T) = {
+    val insert = Node(data, null)
+    
+    if (root == null) {
+      root = insert
+    } else {
+      root.next = insert
+    }
+    
+    this
+  }
+  
+  def get(index: Int) = {
+    def walk(node: Node, current: Int): T = {
+      if (node == null) {
+        throw new IndexOutOfBoundsException(index.toString)
+      }
+      
+      if (current < index) {
+        walk(node.next, current + 1)
+      } else {
+        node.data
+      }
+    }
+    
+    if (index < 0) {
+      throw new IndexOutOfBoundsException(index.toString)
+    }
+    
+    walk(root, 0)
+  }
+  
+  def size = {
+    def walk(node: Node): Int = if (node == null) 0 else 1 + walk(node.next)
+    
+    walk(root)
+  }
+  
+  private case class Node(data: T, var next: Node)
+}
+```
 
 Once this class is compiled, we can use it in our Java code just as if it were written within the language itself:
 
-```java public class Driver { public static void main(String[] args) { LinkedList list = new LinkedList(); for (String arg : args) { list.add(arg); } System.out.println("List has size: " + list.size()); for (int i = 0; i < list.size(); i++) { System.out.println(list.get(i).trim()); } } } ``` 
+```java
+public class Driver {
+    public static void main(String[] args) {
+        LinkedList<String> list = new LinkedList<String>();
+        
+        for (String arg : args) {
+            list.add(arg);
+        }
+        
+        System.out.println("List has size: " + list.size());
+        
+        for (int i = 0; i < list.size(); i++) {
+            System.out.println(list.get(i).trim());
+        }
+    }
+}
+```
 
 Impressively seamless interoperability!  We actually could have gotten really fancy and thrown in some operator overloading.  Obviously, Java wouldn't have been able to use the operators themselves, but it still would have been able to call them just like normal Java instance methods.  Using Scala in this way, we can get all the advantages of its concise syntax and slick design without really abandoning our Java code base.
 
 The problem comes in when we try to satisfy more complex cases.  Groovy proponents often trot out the example of a Java class inherited by a Groovy class which is in turn inherited by another Java class.  In Scala, that would be doing something like this:
 
-```java public class Shape { public abstract void draw(Canvas c); } ``` ```scala class Rectangle(val width: Int, val height: Int) extends Shape { override def draw(c: Canvas) { // ... } } ``` ```java public class Square extends Rectangle { public Square(int size) { super(size, size); } } ``` 
+```java
+public class Shape {
+    public abstract void draw(Canvas c);
+}
+```
+
+```scala
+class Rectangle(val width: Int, val height: Int) extends Shape {
+  override def draw(c: Canvas) {
+    // ...
+  }
+}
+```
+
+```java
+public class Square extends Rectangle {
+    public Square(int size) {
+        super(size, size);
+    }
+}
+```
 
 Unfortunately, this isn't exactly possible in Scala.  Well, I take that back.  We can cheat a bit and first compile `Shape` using javac, then compile `Rectangle` using scalac and finally `Square` using javac, but that would be quite nasty indeed.  What's worse is such a technique would completely fall over if the `Canvas` class were to have a dependency on `Rectangle`, something which isn't too hard to imagine.  In short, Scala is bound by the limitations of a separate compiler, as are most languages on the JVM.
 

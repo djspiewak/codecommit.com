@@ -18,7 +18,17 @@ One of the new features in 1.3 (important enough to merit inclusion in Martijn's
 
 This all seems well and good, but unfortunately Wicket's Guice support is not quite up to par with the rest of the framework.  I tried the support a while back in beta4 and ran headlong into a fairly serious problem.  The following code doesn't work:
 
-```java public class MyModule extends AbstractModule { // ... @Override public void configure() { EntityManager manager = new EntityManager(uri, username, password); bind(EntityManager.class).toInstance(manager); } } ``` 
+```java
+public class MyModule extends AbstractModule {
+    // ...
+
+    @Override
+    public void configure() {
+        EntityManager manager = new EntityManager(uri, username, password);
+        bind(EntityManager.class).toInstance(manager);
+    }
+}
+```
 
 This is fairly standard Guice configuration code.  All that's happening here is I'm binding all injected fields of type _EntityManager_ to a given instance.  Of course the classic use of DI is to have it instantiate the injected values based on classname (or class literal in Guice's case).  However, this panacea of IOC breaks down when working with classes which lack default constructors (like _EntityManager_ ).  This is why Guice enables developers to bind classes to instances (as I'm doing above).  The problem is this code will crash when executed using wicket-guice.
 

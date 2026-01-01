@@ -54,7 +54,9 @@ Notice how every parse starts with the initial state ( **1** ).  This may seem 
 
 If you look closely at my example, you'll notice that you can very easily encode the same accept/reject information using a regular expression:
 
-``` [a-d]a[0-9]*([nm]|[a-lo-z])|g([n-z][0-9]?|[abc]) ``` 
+```
+[a-d]a[0-9]*([nm]|[a-lo-z])|g([n-z][0-9]?|[abc])
+```
 
 Ok, so maybe that's not the easiest connection to make, but I think you get the picture.  As it turns out, regular expressions are a direct textual representation of deterministic finite state automata.  In fact, algorithms for executing regular expressions compile the regular expression into a DFA (using various techniques) and then execute this DFA against the input.  It does require an intervening step to convert from a regular expression to a DFA, but it's not that difficult to do.
 
@@ -64,19 +66,54 @@ Now that I've managed to lull all of you to sleep, it's time to get back to more
 
 C-style `printf` has a fairly flexible syntax which allows not only simple substitutions, but also type-dependent formatting, padding and truncation.  For example, we can do something like this in Java:
 
-```java double pi = 3.14159; System.out.printf("My favorite number: %n%80.2f", pi); ``` 
+```java
+double pi = 3.14159;
+System.out.printf("My favorite number: %n%80.2f", pi);
+```
 
 The result looks like this (including all the space):
 
-``` My favorite number: 3.14 ``` 
+```
+My favorite number:
+                                                                            3.14
+```
 
 There are a number of different conversions available, denoted by the letter trailing the escape - in this case, `n` and `f` respectively.  There are also a large number of flags which can be used, the capability to specify the argument index, etc.  Altogether, the [context-free grammar](<http://en.wikipedia.org/wiki/Context-free_grammar>) for this format looks like this ([source](<http://java.sun.com/javase/6/docs/api/java/util/Formatter.html>)):
 
-``` format ::= '%' index flags width precision conversion index ::= INTEGER '$' | '<' | ε flags ::= flags flag | ε flag ::= '-' | '#' | '+' | ' ' | '0' | ',' | '(' width ::= INTEGER | ε precision ::= '.' INTEGER | ε conversion ::= 'b' | 'B' | 'h' | 'H' | 's' | 'S' | 'c' | 'C' | 'd' | 'o' | 'x' | 'X' | 'E' | 'E' | 'f' | 'g' | 'G' | 'a' | 'A' | ( 't' | 'T' ) date_format | '%' | 'n' date_format ::= ... ``` 
+```
+format ::= '%' index flags width precision conversion
+
+index ::= INTEGER '$' | '<' | ε
+
+flags ::= flags flag | ε
+flag ::= '-' | '#' | '+' | ' ' | '0' | ',' | '('
+
+width ::= INTEGER | ε
+precision ::= '.' INTEGER | ε
+
+conversion ::= 'b' | 'B'
+             | 'h' | 'H'
+             | 's' | 'S'
+             | 'c' | 'C'
+             | 'd'
+             | 'o'
+             | 'x' | 'X'
+             | 'E' | 'E'
+             | 'f'
+             | 'g' | 'G'
+             | 'a' | 'A'
+             | ( 't' | 'T' ) date_format
+             | '%'
+             | 'n'
+
+date_format ::= ...
+```
 
 I have omitted the grammar for date formatting just for the sake of simplicity.  The epsilon (ε) symbolizes the empty string (`""`).  In case you found the above confusing, this is a (slightly) more human-readable variant:
 
-``` %[argument_index$][flags][width][.precision]conversion ``` 
+```
+%[argument_index$][flags][width][.precision]conversion
+```
 
 Essentially, this boils down to the following: A substitution format is escaped by a percent sign (%) followed by an optional index, flags, width and precision, as well as a mandatory conversion indicator.  The date/time conversion is special and takes a series of formatting parameters immediately trailing the conversion.  For the sake of sanity, our parser implementation will ignore this inconvenient fact.
 
@@ -88,29 +125,171 @@ What _is_ important is to realize that as this grammar is expressible in the for
 
 As it turns out, all of this gobbly-gook expresses very elegantly in functional languages.  In truth, I could have written the parser in ML, but it is much more fun to use Scala.  We start out by considering how we want the intermediate form to be expressed.  Since we're not writing a true compiler, we don't need to worry about serializing this IF into anything persistent; we can rely entirely on memory state.  For a more complicated grammar, we might write classes to represent a tree structure (commonly referred to as an [AST](<http://en.wikipedia.org/wiki/Abstract_syntax_tree>)).  However, because `printf` escapes are so straightforward, we can simply generate a token stream.  We will represent this as `List[Token]` using the following definitions.
 
-```scala sealed abstract class Token case class CharToken(token: Char) extends Token case class FormatToken(index: Index, flags: Set[Flag.Value], width: Option[Int], precision: Option[Int], format: Char) extends Token sealed abstract class Index case class Value(index: Int) extends Index case class Previous extends Index case class Default extends Index object Flag extends Enumeration { val LEFT_JUSTIFIED, ALTERNATE, SIGNED, LEADING_SPACE, ZERO_PADDED, GROUP_SEPARATED, NEGATIVE_PAREN = Value } val flagMap = { import Flag._ Map('-' -> LEFT_JUSTIFIED, '#' -> ALTERNATE, '+' -> SIGNED, ' ' -> LEADING_SPACE, '0' -> ZERO_PADDED, ',' -> GROUP_SEPARATED, '(' -> NEGATIVE_PAREN) } ``` 
+```scala
+sealed abstract class Token
+
+case class CharToken(token: Char) extends Token
+case class FormatToken(index: Index, flags: Set[Flag.Value],
+                                       width: Option[Int], precision: Option[Int],
+                                       format: Char) extends Token
+
+sealed abstract class Index
+
+case class Value(index: Int) extends Index
+case class Previous extends Index
+case class Default extends Index
+
+object Flag extends Enumeration {
+  val LEFT_JUSTIFIED,
+      ALTERNATE,
+      SIGNED, 
+      LEADING_SPACE,
+      ZERO_PADDED, 
+      GROUP_SEPARATED,
+      NEGATIVE_PAREN = Value
+}
+
+val flagMap = {
+    import Flag._
+    
+    Map('-' -> LEFT_JUSTIFIED, '#' -> ALTERNATE, '+' -> SIGNED, 
+        ' ' -> LEADING_SPACE, '0' -> ZERO_PADDED, ',' -> GROUP_SEPARATED,
+        '(' -> NEGATIVE_PAREN)
+  }
+```
 
 Note that `Option` is insufficient to represent `index` because of the `<` escape (use previous index).  Thus, we define a separate series of types with three alternatives: `Value`, `Previous` and `Default`).  This is similar to `Option`, but more specific to our needs.  Finally, the flags are represented as an enumeration.  Scala doesn't have language-level support for enumerations, so the syntax ends up being a fair-bit more verbose than the equivalent Java.  It is for this reason that enumerations aren't used very much in Scala, instead preferring sealed case classes and object modules (to serve as the namespace).
 
 Our parser will have to consume the entire format string, including non-escapes.  The final representation will be an immutable list of `Token`(s), either `CharToken` for a single run-of-the-mill character, or `FormatToken` which will represent the fully-parsed substitution.  Thus, for the `printf` example [given above](<#printf-example>) (my favorite number), the token stream will look something like this:
 
-```scala CharToken('M') :: CharToken('y') :: CharToken(' ') :: /* ... */ :: FormatToken(Default(), Set(), None, None, 'n') :: FormatToken(Default(), Set(), Some(80), Some(2), 'f') :: Nil ``` 
+```scala
+CharToken('M') :: CharToken('y') :: CharToken(' ') :: /* ... */ :: 
+    FormatToken(Default(), Set(), None, None, 'n') :: 
+    FormatToken(Default(), Set(), Some(80), Some(2), 'f') :: Nil
+```
 
 _For those of you unfamiliar with the cons operator (_`::` _), it is just about the most useful functional idiom known to exist, especially in conjunction with pattern matching.   All it does is construct a new linked list with the value on the left as the head and the_ list _to the right as the tail.   _`Nil` _is the empty list and thus commonly serves as the tail of a compound cons expression._
 
 To produce this token stream, we will need to write an automaton which consumes each character in the stream and inspects it to see if it marks the beginning of a substitution.  If not, then a `CharToken` should be generated and put in the list.  However, if the character does mark an escape, then the automaton should transition to a different branch, consuming characters as necessary and walking through the algorithmic representation of our one-line syntax.  It is possible to diagram the necessary automaton, but to do so would be both pointless and unhelpful.  It's probably easier just to dive into the code:
 
-```scala type Input = ()=>Option[Char] def parse(stream: Input): List[Token] = { stream() match { case Some('%') => parseIndex1(stream) :: parse(stream) case Some(x) => CharToken(x) :: parse(stream) case None => Nil } } ``` 
+```scala
+type Input = ()=>Option[Char]
+
+def parse(stream: Input): List[Token] = {
+  stream() match {
+    case Some('%') => parseIndex1(stream) :: parse(stream)
+    case Some(x) => CharToken(x) :: parse(stream)
+    case None => Nil
+  }
+}
+```
 
 Rather than trying to efficiently walk through a proper `String` instance, it is easier to deal with a single-character stream.  The `Input` type alias defines a function value which will return `Some(x)` for the next character `x` in the string, or `None` if the end of the string has been reached.  It's like a type-safe EOF.  We will call this method in the following way:
 
-```scala var index = -1 val tokens = parse(() => { index = (index + 1) if (index < pattern.length) Some(pattern(index)) else None }) ``` 
+```scala
+var index = -1
+val tokens = parse(() => {
+  index = (index + 1)
+  if (index < pattern.length) Some(pattern(index)) else None
+})
+```
 
 Our cute use of mutable state (`index`) makes this code far more concise than it would have been had we attempted to do things functionally.  As it turns out, this is the only place is in our parser where we need to maintain state which is not on the stack.  Because no lookahead is required, we can simply march blindly through the syntax, consuming every character we come across and transitioning to a corresponding state.
 
 The first state of our automaton is represented by the `parse(Input)` method.  It has a transition to a normal character-consuming state, which in turn transitions back to `parse` (`CharToken(x)` cons'd with the recursive evaluation).  Our first state also has a transition to a more complicated state represented by `parseIndex1(Input)`.  This transition takes place whenever we consume a percent (%) character.  What happens next is much easier to explain with code than in words ( **warning:** 90-line snippet):
 
-```scala def parseIndex1(stream: Input) = stream() match { case Some(c) => { if (flagMap contains c) { parseFlags(stream, Default(), Set(flagMap(c))) } else if (c == '<') { parseFlags(stream, Previous(), Set[Flag.Value]()) } else if (c == '.') { parsePrecision(stream, Default(), Set[Flag.Value](), None, 0) } else if (Character.isDigit(c)) { parseIndex2(stream, Character.digit(c, 10)) } else { parseFormat(stream, Default(), Set[Flag.Value](), None, None, c) } } case None => throw new InvalidFormatException("Unexpected end of parse stream") } def parseIndex2(stream: Input, value: Int): FormatToken = stream() match { case Some(c) => { lazy val index = if (value == 0) Default() else Value(value) lazy val width = if (value == 0) None else Some(value) if (c == '.') { parsePrecision(stream, Default(), Set[Flag.Value](), width, 0) } else if (c == '$') { parseFlags(stream, index, Set[Flag.Value]()) } else if (Character.isDigit(c)) { parseIndex2(stream, (value * 10) + Character.digit(c, 10)) } else { parseFormat(stream, Default(), Set[Flag.Value](), width, None, c) } } case None => throw new InvalidFormatException("Unexpected end of parse stream") } def parseFlags(stream: Input, index: Index, flags: Set[Flag.Value]): FormatToken = stream() match { case Some(c) => { if (flagMap contains c) { parseFlags(stream, index, flags + flagMap(c)) } else if (c == '.') { parsePrecision(stream, index, flags, None, 0) } else if (Character.isDigit(c)) { parseWidth(stream, index, flags, Character.digit(c, 10)) } else { parseFormat(stream, index, flags, None, None, c) } } case None => throw new InvalidFormatException("Unexpected end of parse stream") } def parseWidth(stream: Input, index: Index, flags: Set[Flag.Value], value: Int): FormatToken = stream() match { case Some(c) => { lazy val width = if (value == 0) None else Some(value) if (c == '.') { parsePrecision(stream, index, flags, width, 0) } else if (Character.isDigit(c)) { parseWidth(stream, index, flags, (value * 10) + Character.digit(c, 10)) } else { parseFormat(stream, index, flags, width, None, c) } } case None => throw new InvalidFormatException("Unexpected end of parse stream") } def parsePrecision(stream: Input, index: Index, flags: Set[Flag.Value], width: Option[Int], value: Int): FormatToken = stream() match { case Some(c) => { lazy val precision = if (value == 0) None else Some(value) if (Character.isDigit(c)) { parsePrecision(stream, index, flags, width, (value * 10) + Character.digit(c, 10)) } else { parseFormat(stream, index, flags, width, precision, c) } } case None => throw new InvalidFormatException("Unexpected end of parse stream") } def parseFormat(stream: Input, index: Index, flags: Set[Flag.Value], width: Option[Int], precision: Option[Int], c: Char) = { FormatToken(index, flags, width, precision, c) } ``` 
+```scala
+def parseIndex1(stream: Input) = stream() match {
+  case Some(c) => {
+    if (flagMap contains c) {
+      parseFlags(stream, Default(), Set(flagMap(c)))
+    } else if (c == '<') {
+      parseFlags(stream, Previous(), Set[Flag.Value]())
+    } else if (c == '.') {
+      parsePrecision(stream, Default(), Set[Flag.Value](), None, 0)
+    } else if (Character.isDigit(c)) {
+      parseIndex2(stream, Character.digit(c, 10))
+    } else {
+      parseFormat(stream, Default(), Set[Flag.Value](), None, None, c)
+    }
+  }
+  
+  case None => throw new InvalidFormatException("Unexpected end of parse stream")
+}
+
+def parseIndex2(stream: Input, value: Int): FormatToken = stream() match {
+  case Some(c) => {
+    lazy val index = if (value == 0) Default() else Value(value)
+    lazy val width = if (value == 0) None else Some(value)
+    
+    if (c == '.') {
+      parsePrecision(stream, Default(), Set[Flag.Value](), width, 0)
+    } else if (c == '$') {
+      parseFlags(stream, index, Set[Flag.Value]())
+    } else if (Character.isDigit(c)) {
+      parseIndex2(stream, (value * 10) + Character.digit(c, 10))
+    } else {
+      parseFormat(stream, Default(), Set[Flag.Value](), width, None, c)
+    }
+  }
+  
+  case None => throw new InvalidFormatException("Unexpected end of parse stream")
+}
+
+def parseFlags(stream: Input, index: Index, flags: Set[Flag.Value]): FormatToken =
+  stream() match {
+    case Some(c) => {
+      if (flagMap contains c) {
+        parseFlags(stream, index, flags + flagMap(c))
+      } else if (c == '.') {
+        parsePrecision(stream, index, flags, None, 0)
+      } else if (Character.isDigit(c)) {
+        parseWidth(stream, index, flags, Character.digit(c, 10))
+      } else {
+        parseFormat(stream, index, flags, None, None, c)
+      }
+    }
+    
+    case None => throw new InvalidFormatException("Unexpected end of parse stream")
+  }
+  
+def parseWidth(stream: Input, index: Index, flags: Set[Flag.Value], 
+               value: Int): FormatToken = stream() match {
+  case Some(c) => {
+    lazy val width = if (value == 0) None else Some(value)
+    
+    if (c == '.') {
+      parsePrecision(stream, index, flags, width, 0)
+    } else if (Character.isDigit(c)) {
+      parseWidth(stream, index, flags, (value * 10) + Character.digit(c, 10))
+    } else {
+      parseFormat(stream, index, flags, width, None, c)
+    }
+  }
+  
+  case None => throw new InvalidFormatException("Unexpected end of parse stream")
+}
+
+def parsePrecision(stream: Input, index: Index, flags: Set[Flag.Value], 
+                   width: Option[Int], value: Int): FormatToken = stream() match {
+  case Some(c) => {
+    lazy val precision = if (value == 0) None else Some(value)
+    
+    if (Character.isDigit(c)) {
+      parsePrecision(stream, index, flags, width, (value * 10) + Character.digit(c, 10))
+    } else {
+      parseFormat(stream, index, flags, width, precision, c)
+    }
+  }
+  
+  case None => throw new InvalidFormatException("Unexpected end of parse stream")
+}
+
+def parseFormat(stream: Input, index: Index, flags: Set[Flag.Value],
+                width: Option[Int], precision: Option[Int], c: Char) = {
+  FormatToken(index, flags, width, precision, c)
+}
+```
 
 If you can get past the sheer volume of code here, it actually turns out to be pretty simple.  Each method represents a single state.  Some of these states have loop transitions (so as to consume multi-digit precisions, for example), but for the most part, flow travels smoothly from each state to the next.  The transitions are defined by the `if`/`else if`/`else` expressions within each method.  Note that due to the fact that every `if` statement has a corresponding `else`, we are allowed to treat them has expressions with a proper value and thus avoid the use of any explicit `return`s (improving the conciseness of the code).
 
@@ -122,7 +301,17 @@ As a side-bonus, it is possible to rewrite the `parse` method so that it is tail
 
 The tail recursive form of `parse` is nowhere near as elegant, but it gets the job done.  Like most tail recursive methods, it makes use of an accumulator which is passed from each call to the next.  So rather than parsing the tokens recursively and then constructing the list as we pop back up the stack, we construct the list as we go and return the completed value at the end.  The only problem with this is that cons prepends elements to the list.  This means that when we finally return the accumulated list, it will be the exact inverse of what we want.  Thus, we must must explicitly reverse the list at the termination of the character stream.  This actually means that the tail recursive form will require more bytecode instructions than the original, but it will execute more efficiently due to the local elimination of the stack (effectively, scalac will collapse the method into a `while` loop at compile-time).
 
-```scala def parse(stream: Input) = tailParse(stream, Nil) def tailParse(stream: Input, back: List[Token]): List[Token] = { stream() match { case Some('%') => tailParse(stream, parseIndex1(stream) :: back) case Some(x) => tailParse(stream, CharToken(x) :: back) case None => back.reverse } } ``` 
+```scala
+def parse(stream: Input) = tailParse(stream, Nil)
+
+def tailParse(stream: Input, back: List[Token]): List[Token] = {
+  stream() match {
+    case Some('%') => tailParse(stream, parseIndex1(stream) :: back)
+    case Some(x) => tailParse(stream, CharToken(x) :: back)
+    case None => back.reverse
+  }
+}
+```
 
 ### Conclusion
 

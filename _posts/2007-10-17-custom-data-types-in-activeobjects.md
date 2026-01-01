@@ -18,7 +18,72 @@ Not one to shirk good advise when I hear it, I've decided to go with this approa
 
 `TypeManager` is basically the singleton manager for the entire type system.  It maintains the list of available `DatabaseType(s)` and can resolve both Java classes and SQL types to the appropriate delegate.  A number of core types (`VarcharType`, `IntegerType`, etc) are added to the singleton instance of `TypeManager`, ensuring that basic functionality works without any extra effort on the part of the developer.  If a type other than the core types is needed, all that is necessary is to add the type delegate instance to the `TypeManager` prior to the type's usage in either migrations or data access.  Thusly:
 
-```java public interface Company extends Entity { public String getName(); public void setName(String name); public Class getJavaType(); public void setJavaType(Class type); } public class ClassType extends DatabaseType> { public ClassType() { super(Types.VARCHAR, 255, Class.class); } @Override public Class convert(EntityManager manager, ResultSet res, Class> type, String field) throws SQLException { try { return Class.forName(res.getString(field)); } catch (Throwable t) { return null; } } @Override public void putToDatabase(int index, PreparedStatement stmt, Class value) throws SQLException { stmt.setString(index, value.getName()); } @Override public Object defaultParseValue(String value) { try { return Class.forName(value); } catch (Throwable t) { return null; } } @Override public String valueToString(Object value) { if (value instanceof Class) { return ((Class) value).getName(); } return super.valueToString(value); } @Override public String getDefaultName() { return "VARCHAR"; } } // ... TypeManager.getInstance().addType(new ClassType()); Company[] stringCompanies = manager.find(Company.class, "javaType = ?", String.class); for (Company c : stringCompanies) { System.out.println(c.getName() + " former held type " + c.getJavaType().getName()); c.setJavaType(Exception.class); c.save(); } ``` 
+```java
+public interface Company extends Entity {
+    public String getName();
+    public void setName(String name);
+
+    public Class<?> getJavaType();
+    public void setJavaType(Class<?> type);
+}
+
+public class ClassType extends DatabaseType<Class<?>> {
+
+    public ClassType() {
+        super(Types.VARCHAR, 255, Class.class);
+    }
+
+    @Override
+    public Class<?> convert(EntityManager manager, ResultSet res, 
+                Class<? extends Class<?>> type, String field) throws SQLException {
+        try {
+            return Class.forName(res.getString(field));
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    @Override
+    public void putToDatabase(int index, PreparedStatement stmt, 
+                Class<?> value) throws SQLException {
+        stmt.setString(index, value.getName());
+    }
+
+    @Override
+    public Object defaultParseValue(String value) {
+        try {
+            return Class.forName(value);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+    
+    @Override
+    public String valueToString(Object value) {
+        if (value instanceof Class) {
+            return ((Class<?>) value).getName();
+        }
+        
+        return super.valueToString(value);
+    }
+
+    @Override
+    public String getDefaultName() {
+        return "VARCHAR";
+    }
+}
+
+// ...
+TypeManager.getInstance().addType(new ClassType());
+
+Company[] stringCompanies = manager.find(Company.class, "javaType = ?", String.class);
+for (Company c : stringCompanies) {
+    System.out.println(c.getName() + " former held type " + c.getJavaType().getName());
+
+    c.setJavaType(Exception.class);
+    c.save();
+}
+```
 
 The most complicated bit of the example above is the database type itself.  Yet even this delegate isn't too horrible.  The `ClassType` class first specifies in its constructor which types it corresponds to, both database and Java.  Multiple Java class types can be specified, allowing for cases like `IntegerType` which maps to both `Integer.class` _and_ `int.class`.
 
@@ -26,7 +91,46 @@ The rest of the database type is fairly self-explanatory.  There are methods to
 
 Of course, no example would be complete without another one to complement it!  Here's how we could create a type delegate for the `java.awt.Point` class:
 
-```java public class PointType extends DatabaseType { private static final Pattern PATTERN = Pattern.compile("x=(\\\d+),y=(\\\d+)"); protected PointType() { super(Types.VARCHAR, 45, Point.class); } @Override public Point convert(EntityManager manager, ResultSet res, Class type, String field) throws SQLException { return (Point) defaultParseValue(res.getString(field)); } @Override public void putToDatabase(int index, PreparedStatement stmt, Point value) throws SQLException { stmt.setString(index, valueToString(value)); } @Override public Object defaultParseValue(String value) { Point back = null; Matcher matcher = PATTERN.matcher(value); if (matcher.find()) { back = new Point(); back.x = Integer.parseInt(matcher.group(1)); back.y = Integer.parseInt(matcher.group(2)); } return back; } @Override public String getDefaultName() { return "VARCHAR"; } } ``` 
+```java
+public class PointType extends DatabaseType<Point> {
+    private static final Pattern PATTERN = Pattern.compile("x=(\\d+),y=(\\d+)");
+
+    protected PointType() {
+        super(Types.VARCHAR, 45, Point.class);
+    }
+
+    @Override
+    public Point convert(EntityManager manager, ResultSet res, 
+            Class<? extends Point> type, String field) throws SQLException {
+        return (Point) defaultParseValue(res.getString(field));
+    }
+    
+    @Override
+    public void putToDatabase(int index, PreparedStatement stmt, Point value) 
+                throws SQLException {
+        stmt.setString(index, valueToString(value));
+    }
+
+    @Override
+    public Object defaultParseValue(String value) {
+        Point back = null;
+        Matcher matcher = PATTERN.matcher(value);
+        
+        if (matcher.find()) {
+            back = new Point();
+            back.x = Integer.parseInt(matcher.group(1));
+            back.y = Integer.parseInt(matcher.group(2));
+        }
+        
+        return back;
+    }
+
+    @Override
+    public String getDefaultName() {
+        return "VARCHAR";
+    }
+}
+```
 
 One thing of note here which has changed from the previous example of `ClassType` is that the second parameter to the super constructor is now 45, instead of 255.  This parameter is actually the default precision of the SQL type when rendered into the database.  If the SQL type doesn't have a precision or should just take the database default, a negative value should be specified for this parameter.  Another item of note is that we're delegating work between methods in a way that I simply didn't do for `ClassType`.  Because the rendering of the type in the database is in VARCHAR (String) form, we can rely upon our default `String` conversion methods to render into the database.  As an aside, the superclass implementation of `valueToString(Object)` uses the `toString()` method for that particular value.
 

@@ -20,13 +20,49 @@ Unfortunately, this turns out to be a very tough nut to crack. A number of resea
 
 There is a single principle which should be drilled into skulls of all programmers everywhere: mutable data structures are bad news. Don't get me wrong, I love `ArrayList` as much as the Java addict, but such structures cause serious problems, particularly where concurrency is concerned. We can consider the trivial example where two threads are attempting to populate an array simultaneously:
 
-```java private String[] names = new String[6]; private int index = 0; public static void main(String[] args) { Thread thread1 = new Thread() { public void run() { names[index++] = "Daniel"; names[index++] = "Chris"; names[index++] = "Joseph"; } }; Thread thread2 = new Thread() { public void run() { names[index++] = "Renee"; names[index++] = "Bethany"; names[index++] = "Grace"; } }; thread1.start(); thread2.start(); thread1.join(); thread2.join(); for (String name : names) { System.out.println(name); } } ``` 
+```java
+private String[] names = new String[6];
+private int index = 0;
+
+public static void main(String[] args) {
+    Thread thread1 = new Thread() {
+        public void run() {
+            names[index++] = "Daniel";
+            names[index++] = "Chris";
+            names[index++] = "Joseph";
+        }
+    };
+    
+    Thread thread2 = new Thread() {
+        public void run() {
+            names[index++] = "Renee";
+            names[index++] = "Bethany";
+            names[index++] = "Grace";
+        }
+    };
+
+    thread1.start();
+    thread2.start();
+    
+    thread1.join();
+    thread2.join();
+    
+    for (String name : names) {
+        System.out.println(name);
+    }
+}
+```
 
 What does this snippet print? I don't know. It's actually indeterminate. Now we can _guess_ that on most machines the result will be essentially interleaved between the two threads, but there is no way to guarantee this. Part of the reason for this is the fact that arrays are mutable. As such, they enable (and indeed, encourage) certain patterns which are highly destructive when employed asynchronously.
 
 However, concurrency is not even the only motivation for immutable data structures. Consider the following example:
 
-```java List names = ... for (String name : names) { names.add(name.toUpperCase()); } ``` 
+```java
+List<String> names = ...
+for (String name : names) {
+    names.add(name.toUpperCase());
+}
+```
 
 I'm sure all of us have done something like this, most likely by accident. The result is (of course) a `ConcurrentModificationException` caused by the fact that we are attempting to add to a `List` _while_ we are iterating over its contents. I know that the first time I was faced with this error message I became extremely confused. After all, no threads are being employed, so why is this a problem?
 
@@ -38,7 +74,12 @@ All of this becomes moot once you start using immutable data structures. There i
 
 At this point, the question you must be asking yourself is: "So if the data structure is immutable, what good is it?" The answer is "for reading". Data structures spend most of their lives being read and traversed by other code. Immutable data structures can be read in exactly the same fashion as mutable ones. The trick of course is constructing that data structure in the first place. After all, if the data structure is completely immutable, where does it come from? A simple example from a prior article is sufficient to demonstrate both aspects:
 
-```scala def toSet[T](list: List[T]): Set[T] = list match { case hd :: tail => hd + toSet(tail) case Nil => Set[T]() } ``` 
+```scala
+def toSet[T](list: List[T]): Set[T] = list match {
+  case hd :: tail => hd + toSet(tail)
+  case Nil => Set[T]()
+}
+```
 
 This is neither the most concise nor the most efficient way to accomplish this task. The only purpose served by this example is to illustrate that it _is_ very possible to build up immutable data structures without undue syntactic overhead. You'll notice that every time we want to "change" a data structure - either removing from the list or adding to the set - we use a function call and either pass or return the modified structure. In essence, the state is kept entirely on the stack, with each new version of the data structure in question becoming the "changed" version from the previous operation.
 
@@ -48,7 +89,32 @@ This idiom is actually quite powerful and can be applied to even more esoteric (
 
 For the sake of argument, let's assume that my pitiful arguments have convinced you to lay aside your heathen mutating ways and follow the path of functional enlightenment. Let's also assume that you're consumed with the desire to create an application which tracks the status of an arbitrary number of buttons. These buttons may be pressed in any order regardless of what other buttons are already pressed. Following the path of immutability and making use of the patron saint of persistent data structures (`List`), you might come up with the following solution:
 
-```scala class ButtonStrip private (buttons: List[Boolean]) { def this(num: Int) = { this((0 until num).foldLeft(List[Boolean]()) { (list, i) => false :: list }) } def status(index: Int) = buttons(index) def push(index: Int) = modify(index, true) def unpush(index: Int) = modify(index, false) /** * Modify buttons list and return a new ButtonStrip with the results. */ private def modify(index: Int, status: Boolean) = { val (_, back) = (buttons :\ (buttons.length - 1, List[Boolean]())) { (tuple, button) => val (i, total) = tuple (if (i == index) status else button) :: total } new ButtonStrip(back) } } ``` 
+```scala
+class ButtonStrip private (buttons: List[Boolean]) {
+  def this(num: Int) = {
+    this((0 until num).foldLeft(List[Boolean]()) { (list, i) =>
+      false :: list
+    })
+  }
+  
+  def status(index: Int) = buttons(index)
+  
+  def push(index: Int) = modify(index, true)
+  
+  def unpush(index: Int) = modify(index, false)
+  
+  /**
+   * Modify buttons list and return a new ButtonStrip with the results.
+   */
+  private def modify(index: Int, status: Boolean) = {
+    val (_, back) = (buttons :\ (buttons.length - 1, List[Boolean]())) { (tuple, button) =>
+      val (i, total) = tuple
+      (if (i == index) status else button) :: total
+    }
+    new ButtonStrip(back)
+  }
+}
+```
 
 This is a horrible mess of barely-idiomatic functional code. It's difficult to read and nearly impossible to maintain; but it's purely immutable! This is _not_ how you want your code to look. In fact, this is an excellent example of what David MacIver would call "[bad functional code](<http://www.drmaciver.com/2008/08/functional-code-not-equal-good-code>)".
 
@@ -172,19 +238,52 @@ Coming back down to Earth (sort of), we consider for our design that the `Vector
 
 Put into code, this looks like the following:
 
-```scala class Vector[+T] private (private val data: Option[T], val length: Int, private val branches: Seq[Vector[T]]) extends RandomAccessSeq[T] { def this() = this(None, 0, new Array[Vector[T]](BRANCHING_FACTOR)) // ... } ``` 
+```scala
+class Vector[+T] private (private val data: Option[T], 
+      val length: Int, private val branches: Seq[Vector[T]]) extends RandomAccessSeq[T] {
+  def this() = this(None, 0, new Array[Vector[T]](BRANCHING_FACTOR))
+
+  // ...
+}
+```
 
 `RandomAccessSeq` is a parent class in the Scala collections API which allows our vector to be treated just like any other collection in the library. You'll notice that we're hiding the default constructor and providing a no-args public constructor which instantiates the default. This only makes sense as all of those fields are implementation-specific and should not be exposed in the public API. It's also worth noting that the branches field is typed as `Seq[Vector[T]]` rather than `Array[Vector[T]]`. This is a bit of a type-system hack to get around the fact that `Array` is parameterized invariantly (as a mutable sequence) whereas `Seq` is not.
 
 With this initial design decision, the rest of the implementation follows quite naturally. The only trick is the ability to convert an index given in base-10 to the relevant base-32 (where 32 is the branching factor) values to be handled at each level. After far more pen-and-paper experimentation than I would like to admit, I finally arrived at the following solution to this problem:
 
-```scala def computePath(total: Int, base: Int): List[Int] = { if (total < 0) { throw new IndexOutOfBoundsException(total.toString) } else if (total < base) List(total) else { var num = total var digits = 0 while (num >= base) { num /= base digits += 1 } val rem = total % (Math.pow(base, digits)).toInt val subPath = computePath(rem, base) num :: (0 until (digits - subPath.length)).foldRight(subPath) { (i, path) => 0 :: path } } } ``` 
+```scala
+def computePath(total: Int, base: Int): List[Int] = {
+  if (total < 0) {
+    throw new IndexOutOfBoundsException(total.toString)
+  } else if (total < base) List(total) else {
+    var num = total
+    var digits = 0
+    while (num >= base) {
+      num /= base
+      digits += 1
+    }
+    
+    val rem = total % (Math.pow(base, digits)).toInt
+    
+    val subPath = computePath(rem, base)
+    num :: (0 until (digits - subPath.length)).foldRight(subPath) { (i, path) => 0 :: path }
+  }
+}
+```
 
 As a brief explanation, if our branching factor is 10 and the input index (`total`) is 20017, the result of this recursive function will be `List(2, 0, 0, 1, 7)`. The final step in the method (dealing with ranges and folding and such) is required to solve the problem of leading zeroes dropping off of subsequent path values and thus corrupting the final coordinates in the trie.
 
 The final step in our implementation (assuming that we've got the rest correct) is to implement some of the utility methods common to all collections. Just for demonstration, this is the implementation of the `map` function. It also happens to be a nice, convenient example of _good_ functional code. :-)
 
-```scala override def map[A](f: (T)=>A): Vector[A] = { val newBranches = branches map { vec => if (vec == null) null else vec map f } new Vector(data map f, length, newBranches) } ``` 
+```scala
+override def map[A](f: (T)=>A): Vector[A] = {
+  val newBranches = branches map { vec =>
+    if (vec == null) null else vec map f
+  }
+  
+  new Vector(data map f, length, newBranches)
+}
+```
 
 #### Properties
 
@@ -194,7 +293,17 @@ Before moving on from this section, it's worth noting that that our implementati
 
 Since we now have an immutable data structure with efficient random-access, we may as well rewrite our previous example of the button strip using this structure. Not only is the result far more efficient, but it is also intensely cleaner and easier to read:
 
-```scala class ButtonStrip private (buttons: Vector[Boolean]) { def this(num: Int) = this(new Vector[Boolean]) // no worries about length def status(index: Int) = buttons(index) def push(index: Int) = new ButtonStrip(buttons(index) = true) def unpush(index: Int) = new ButtonStrip(buttons(index) = false) } ``` 
+```scala
+class ButtonStrip private (buttons: Vector[Boolean]) {
+  def this(num: Int) = this(new Vector[Boolean])     // no worries about length
+  
+  def status(index: Int) = buttons(index)
+  
+  def push(index: Int) = new ButtonStrip(buttons(index) = true)
+  
+  def unpush(index: Int) = new ButtonStrip(buttons(index) = false)
+}
+```
 
 You'll notice that the `update` method is in fact defined for `Vector`, but rather than returning `Unit` it returns the modified `Vector`. Interestingly enough, we don't need to worry about length allocation or anything bizarre like that due to the properties of the persistent vector (infinite length). Just like arrays, a `Vector` is pre-populated with the default values for its type. In the case of most types, this is `null`. However, for `Int`, the default value is `0`; for `Boolean`, the default is `false`. We exploit this property when we simply return the value of dereferencing the vector based on _any_ index. Thus, our `ButtonStrip` class actually manages a strip of infinite length.
 

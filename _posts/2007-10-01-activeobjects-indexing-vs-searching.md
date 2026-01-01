@@ -18,7 +18,9 @@ The old _@Index_ annotation used to handle tagging of entity methods to mark the
 
 One of the most common techniques for optimizing your database's read (SELECT) performance is to create indexes on certain fields.  When a field is indexed, the database will maintain some separate hash tables to enable very fast selection of rows based on the field in question.  This is a really good thing for almost all foreign keys, for example:
 
-```sql SELECT id FROM people WHERE companyID = ? ``` 
+```sql
+SELECT id FROM people WHERE companyID = ?
+```
 
 Here we're SELECTing the _id_ field from the _people_ table where _companyID_ matches a certain value.  The database can execute this query fairly quickly.  In fact, the only bottle-neck is finding all of the rows which match the specified _companyID_ value.  In a table containing hundreds of thousands of rows, one can see how this could be a problem.
 
@@ -33,11 +35,36 @@ So perfect database performance isn't attainable just by indexing every field, o
 
 This long and tangled introduction actually did have a point...  ActiveObjects didn't have any support for field indexing.  I hadn't really considered the possibility, so I didn't factor it into my design.  In retrospect, this was probably a bad idea.  So making up for lost time, I've now introduced field indexing into the library!
 
-```java public interface Person extends Entity { @Indexed public String getName(); @Indexed public void setName(String name); public int getAge(); public void setAge(int age); public Company getCompany(); public void setCompany(Company company); } ``` 
+```java
+public interface Person extends Entity {
+
+    @Indexed
+    public String getName();
+    @Indexed
+    public void setName(String name);
+
+    public int getAge();
+    public void setAge(int age);
+
+    public Company getCompany();
+    public void setCompany(Company company);
+}
+```
 
 When ActiveObjects generates the migration DDL for this table (running against MySQL), it will look something like this:
 
-```sql CREATE TABLE people ( id INTEGER NOT NULL AUTO_INCREMENT, name VARCHAR(255), age INTEGER, companyID INTEGER, CONSTRAINT fk_people_companyID FOREIGN KEY (companyID) REFERENCES companies(id), PRIMARY KEY(id) ); CREATE INDEX name ON people(name); CREATE INDEX companyID ON people(companyID); ``` 
+```sql
+CREATE TABLE people (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255),
+    age INTEGER,
+    companyID INTEGER,
+    CONSTRAINT fk_people_companyID FOREIGN KEY (companyID) REFERENCES companies(id),
+    PRIMARY KEY(id)
+);
+CREATE INDEX name ON people(name);
+CREATE INDEX companyID ON people(companyID);
+```
 
 This is where the aforementioned _@Indexed_ annotation comes in.  As you can see from the resultant DDL, adding a field index is as simple as tagging the corresponding method.  Also, foreign keys are automatically indexed, to ensure maximum performance in SELECTion of relations.
 

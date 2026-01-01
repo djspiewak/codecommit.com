@@ -21,7 +21,21 @@ ActiveRecord [claims](<http://wiki.rubyonrails.org/rails/pages/ActiveRecord>) _o
 
 Well, as it turns out, it can.  Here are the numbers from my reasonably simple benchmark:
 
-``` ActiveObjects ============== Queries test: 55 ms Retrieval test: 68 ms Persistence test: 55 ms Relations test: 154 ms ActiveRecord ============= Queries test: 154 ms Retrieval test: 6 ms Persistence test: 76 ms Relations test: 75 ms ``` 
+```
+ActiveObjects
+==============
+Queries test: 55 ms
+Retrieval test: 68 ms
+Persistence test: 55 ms
+Relations test: 154 ms
+
+ActiveRecord
+=============
+Queries test: 154 ms
+Retrieval test: 6 ms
+Persistence test: 76 ms
+Relations test: 75 ms
+```
 
 Surprisingly close numbers actually.  I had assumed that there would be some significant disparity, one way or another.  However, as you can see ActiveObjects is fairly comparable to ActiveRecord on a set of extremely trivial tests.  There are some jumps and obvious areas of strength/weakness in both frameworks, but on average they're pretty similar in performance.
 
@@ -53,11 +67,17 @@ Obviously I can only do so much about the eager loading issue.  I believe prett
 
 Normally, ActiveObjects will generate a query something like the following for accessing a one-to-many relation:
 
-```sql SELECT DISTINCT a.outMap AS outMap FROM ( SELECT id AS outMap,workplaceID AS inMap FROM people WHERE workplaceID = ?) a ``` 
+```sql
+SELECT DISTINCT a.outMap AS outMap FROM (
+    SELECT id AS outMap,workplaceID AS inMap FROM people 
+       WHERE workplaceID = ?) a
+```
 
 Yuck!  For obvious reasons, this is an incredibly inefficient bit of querying.  Actually, not only is it inefficient, but needlessly so.  You and I of course know that we could replace the above query with the much simpler:
 
-```sql SELECT id FROM people WHERE workplaceID = ? ``` 
+```sql
+SELECT id FROM people WHERE workplaceID = ?
+```
 
 So why doesn't ActiveObjects do that?  Frankly, I was lazy in my coding of the _EntityProxy#retrieveRelations_ method, so a lot of ugly SQL slipped through the cracks in cases where it really wasn't necessary.  I've spent a bit of time on this, and I think I've got the issue resolved.  The problem is that ActiveObjects was assuming that any relation (one-to-many or many-to-many) can have multiple mapping fields, thus requiring a wrapping DISTINCT outer query around a subquery SELECT which is UNIONed with an arbitrary number of other SELECTs, corresponding to the other mapping fields.  Obviously, it is almost never the case that we have to deal with multiple mapping paths, so I added a short-circuit to the logic which creates far simpler queries if at all possible.  As a result, the benchmark numbers for the relations test in ActiveObjects are between 80 and 100 ms.  Still slower than ActiveRecord, but much improved.
 

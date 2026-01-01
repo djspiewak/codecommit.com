@@ -12,13 +12,82 @@ I know, the title seems a bit...bizarre.  I don't know about you, but when I th
 
 One particular task which I came across quite recently was the parsing of language files into [bloom filters](<http://www.codecommit.com/blog/scala/bloom-filters-in-scala>), which were then stored on disk.  To me, this sounds like a perfect application for a scripting language.  It's fairly simple, self-contained, involves a moderate degree of file processing, and should be designed, coded and then discarded as quickly as possible.   Dynamic languages have a tendency to produce working designs much faster than static ones, and given the fact that the use-case required access to a library written in Scala, JRuby seemed like the obvious choice (Groovy would have been a fine choice as well, but I'm more familiar with Ruby).  The result looked something like this:
 
-```ruby require 'scala' import com.codecommit.collection.BloomSet import java.io.BufferedOutputStream import java.io.FileOutputStream WIDTH = 2000000 def compute_k(lines, width) # ... end def compute_m(lines) #... end Dir.foreach 'wordlists' do |fname| unless File.directory? fname count = 0 File.new "wordlists/#{fname}" do |file| file.each { |line| count += 1 } end optimal_m = compute_m(count) optimal_k = compute_k(count, WIDTH) set = BloomSet.new(optimal_m, optimal_k) File.new "wordlists/#{fname}" do |fname| file.each do |line| set += line.strip end end os = BufferedOutputStream.new FileOutputStream.new("gen/#{fname}") set.store os os.close end end ``` 
+```ruby
+require 'scala'
+
+import com.codecommit.collection.BloomSet
+
+import java.io.BufferedOutputStream
+import java.io.FileOutputStream
+
+WIDTH = 2000000
+
+def compute_k(lines, width)
+  # ...
+end
+
+def compute_m(lines)
+  #...
+end
+
+Dir.foreach 'wordlists' do |fname|
+  unless File.directory? fname
+    count = 0
+    File.new "wordlists/#{fname}" do |file|
+      file.each { |line| count += 1 }
+    end
+    
+    optimal_m = compute_m(count)
+    optimal_k = compute_k(count, WIDTH)
+    
+    set = BloomSet.new(optimal_m, optimal_k)
+    
+    File.new "wordlists/#{fname}" do |fname|
+      file.each do |line|
+        set += line.strip
+      end
+    end
+    
+    os = BufferedOutputStream.new FileOutputStream.new("gen/#{fname}")
+    set.store os
+    os.close
+  end
+end
+```
 
 As far as scripts go, this one isn't too bad.  I've written some real whoppers for things like video encoding and incremental backups.  The main trick here is the fact that we need to make two separate passes over the same file in order to get the number of lines before constructing the set.  We _could_ load the file into an array buffer in a single pass, count its length and then iterate over the array, placing each element in the bloom filter.   However, this really wouldn't be too much faster than just hitting the file twice (we still need two separate passes) and it has the additional drawback of requiring a fair amount of memory.
 
 All in all, this script is a fairly natural representation of my requirements.   I needed to loop over a number of word lists, push the results into separate bloom filters and then freeze-dry the state.  However, look at what we've actually done here.  Remember earlier where we were considering which language to use?  We wanted a language which could concisely and quickly express our intent.  For that decision making process, we just _assumed_ that a dynamic language would suffice better than one hampered by a static type system.  However, at no point in the above script do we actually do anything _truely_ dynamic.  By that I mean: open classes, unfixed parameter types, `method_missing`, that sort of thing.   In fact, we haven't really done anything that we couldn't do in Scala:
 
-```scala import com.codecommit.collection.BloomSet import java.io.{BufferedOutputStream, File, FileOutputStream} import scala.io.Source val WIDTH = 2000000 def computeK(lines: Int, width: Int) = // ... def computeM(lines: Double) = // ... for (file <\- new File("wordlists").listFiles) { if (!file.isDirectory) { val src = Source.fromFile(file) val count = src.getLines.foldLeft(0) { (i, line) => i + 1 } val optimalM = computeM(count) val optimalK = computeK(count, optimalM) val init = new BloomSet[String](optimalM, optimalK) val set = src.reset.getLines.foldLeft(init) { _ + _.trim } val os = new BufferedOutputStream(new FileOutputStream("gen/" + file.getName)) set.store(os) os.close() } } ``` 
+```scala
+import com.codecommit.collection.BloomSet
+import java.io.{BufferedOutputStream, File, FileOutputStream}
+import scala.io.Source
+
+val WIDTH = 2000000
+
+def computeK(lines: Int, width: Int) = // ...
+
+def computeM(lines: Double) = // ...
+
+for (file <- new File("wordlists").listFiles) {
+  if (!file.isDirectory) {
+    val src = Source.fromFile(file)
+    val count = src.getLines.foldLeft(0) { (i, line) => i + 1 }
+    
+    val optimalM = computeM(count)
+    val optimalK = computeK(count, optimalM)
+    
+    val init = new BloomSet[String](optimalM, optimalK)
+    
+    val set = src.reset.getLines.foldLeft(init) { _ + _.trim }
+    
+    val os = new BufferedOutputStream(new FileOutputStream("gen/" + file.getName))
+    set.store(os)
+    os.close()
+  }
+}
+```
 
 This is actually runnable Scala.  I'm not omitting boiler-plate or cheating in any similar respect.  If you copy this code into a `.scala` file and make sure that `BloomSet` is on your CLASSPATH (which you would have needed anyway for JRuby), you would be able to run the script _uncompiled_ using the `scala` command.  Unlike Java, Scala actually includes an "interpreter" which can parse raw Scala sources and execute the representative program just as if it had been pre-compiled using `scalac`.   One of the perquisites of this approach is the ability to simply omit any `main` method or `Application` class.  In nearly every sense of the word, Scala is a scripting language...as well as an enterprise-ready Java-killer (let the flames begin).
 

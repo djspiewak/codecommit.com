@@ -42,7 +42,13 @@ This really is an amazing release, well worth the download.  Most of the core A
 
 Oh, as an aside, ActiveObjects is now in a Maven2 repository.  (thanks to some POM reworking by [Nathan Hamblen](<http://technically.us/code>))  To make use of this somewhat dubious feature, add the [java.net Maven2 repository](<https://maven2-repository.dev.java.net/>) to your POM and then insert the following dependency:
 
-```xml  net.java.dev.activeobjects activeobjects 0.8 ``` 
+```xml
+<dependency>
+    <groupId>net.java.dev.activeobjects</groupId>
+    <artifactId>activeobjects</artifactId>
+    <version>0.8</version>
+</dependency>
+```
 
 After that, the magic of Maven will take over.  Of course, you'll need to add the dependency for the appropriate database driver and (optionally) connection pool.  Those dependencies are left as an exercise to the reader.  Note, _activeobjects-memcached_ isn't in Maven yet, but it will be for the 0.9 release (either that or integrated into the core, I haven't decided yet).
 

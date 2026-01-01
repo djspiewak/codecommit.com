@@ -40,7 +40,38 @@ So we have our design diagram in hand, it's finally time to consider some code.�
 
 ![image](/assets/images/blog/wp-content/uploads/2008/02/image.png)
 
-```java javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1); jPanel1.setLayout(jPanel1Layout); jPanel1Layout.setHorizontalGroup( jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING) .addGroup(jPanel1Layout.createSequentialGroup() .addContainerGap() .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING) .addGroup(jPanel1Layout.createSequentialGroup() .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING) .addComponent(jLabel3) .addComponent(jLabel4) .addComponent(jLabel5)) .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED) .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING) .addComponent(jTextField4, javax.swing.GroupLayout.DEFAULT_SIZE, 376, Short.MAX_VALUE) .addComponent(jTextField3, javax.swing.GroupLayout.DEFAULT_SIZE, 376, Short.MAX_VALUE) .addGroup(jPanel1Layout.createSequentialGroup() .addComponent(jTextField5, javax.swing.GroupLayout.DEFAULT_SIZE, 282, Short.MAX_VALUE) .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED) .addComponent(jLabel6) .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED) .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))) .addGroup(jPanel1Layout.createSequentialGroup() .addComponent(jLabel7) .addGap(18, 18, 18) .addComponent(jTextField6, javax.swing.GroupLayout.PREFERRED_SIZE, 93, javax.swing.GroupLayout.PREFERRED_SIZE))) .addContainerGap()) ); ``` 
+```java
+javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
+jPanel1.setLayout(jPanel1Layout);
+jPanel1Layout.setHorizontalGroup(
+  jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+  .addGroup(jPanel1Layout.createSequentialGroup()
+    .addContainerGap()
+    .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+      .addGroup(jPanel1Layout.createSequentialGroup()
+        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+          .addComponent(jLabel3)
+          .addComponent(jLabel4)
+          .addComponent(jLabel5))
+        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+          .addComponent(jTextField4, javax.swing.GroupLayout.DEFAULT_SIZE, 376, Short.MAX_VALUE)
+          .addComponent(jTextField3, javax.swing.GroupLayout.DEFAULT_SIZE, 376, Short.MAX_VALUE)
+          .addGroup(jPanel1Layout.createSequentialGroup()
+            .addComponent(jTextField5, javax.swing.GroupLayout.DEFAULT_SIZE, 282, Short.MAX_VALUE)
+            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+            .addComponent(jLabel6)
+            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+            .addComponent(jComboBox1, javax.swing.GroupLayout.PREFERRED_SIZE, 
+                 javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))))
+      .addGroup(jPanel1Layout.createSequentialGroup()
+        .addComponent(jLabel7)
+        .addGap(18, 18, 18)
+        .addComponent(jTextField6, javax.swing.GroupLayout.PREFERRED_SIZE, 93, 
+            javax.swing.GroupLayout.PREFERRED_SIZE)))
+    .addContainerGap())
+);
+```
 
 Oh yeah, I'm looking forward to working with that code.  What's actually worse is you _can't_ work with that code.  NetBeans prevents you from editing the auto-generated sections of the code.  Meaning if Matisse got it wrong (and it did a couple times during the construction of the screenshot), there's no way for you to fix it by hand.  And even assuming you drop back to your favorite external editor to make your fix, the next time you open the file in NetBeans, your changes will be overwritten.  Matisse is a totally dominating, uncompromising beast that takes over your UI and doesn't let go.
 
@@ -65,7 +96,23 @@ There are a number of third-party layout managers available, but the one I reall
 
 With all three layout managers chosen and most of the constraints solidified, it's time to get our hands dirty and actually write some code.  For simplicity of example, we're just going to put everything into a single class with a main method.  This main method will simply set the look and feel (avoiding metal) and launch the frame:
 
-```java public static void main(String... args) { EventQueue.invokeLater(new Runnable() { public void run() { try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (ClassNotFoundException e) { } catch (InstantiationException e) { } catch (IllegalAccessException e) { } catch (UnsupportedLookAndFeelException e) { } new ContactDetails().setVisible(true); } }); } ``` 
+```java
+public static void main(String... args) {
+    EventQueue.invokeLater(new Runnable() {
+        public void run() {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (ClassNotFoundException e) {
+            } catch (InstantiationException e) {
+            } catch (IllegalAccessException e) {
+            } catch (UnsupportedLookAndFeelException e) {
+            }
+            
+            new ContactDetails().setVisible(true);
+        }
+    });
+}
+```
 
 As per convention, all of our components will be created and initialized in the class constructor.  Some people are proponents of the _init()_ or _initComponents()_ convention, but I personally don't see that it serves any purpose.  If you're just calling the method from the constructor anyway, why bother?
 
@@ -73,7 +120,48 @@ You'll notice that we've wrapped the entire launch sequence in an _invokeLater()
 
 Now that we're sure our invocations are properly wrapped, we can get started writing the UI layout code, adding the components to the frame.  Honestly, this code is more than slightly verbose and repetitious, so I'm not going to reproduce all of it.  This is just the interesting stuff:
 
-```java setDefaultCloseOperation(EXIT_ON_CLOSE); setSize(400, 265); JPanel body = new JPanel(new SWTGridLayout(2, false)); getContentPane().add(body); body.add(new JLabel("First Name:")); JTextField firstName = new JTextField(); SWTGridData data = new SWTGridData(); data.grabExcessHorizontalSpace = true; data.horizontalAlignment = SWTGridData.FILL; body.add(firstName, data); body.add(new JLabel("Last Name:")); JTextField lastName = new JTextField(); data = new SWTGridData(); data.grabExcessHorizontalSpace = true; data.horizontalAlignment = SWTGridData.FILL; body.add(lastName, data); JCheckBox address = new JCheckBox("Address"); data = new SWTGridData(); data.horizontalSpan = 2; data.horizontalIndent = 15; body.add(address, data); JPanel addressPanel = new JPanel(new SWTGridLayout(4, false)); addressPanel.setBorder(BorderFactory.createEtchedBorder()); data = new SWTGridData(); data.grabExcessVerticalSpace = true; data.horizontalAlignment = SWTGridData.FILL; data.verticalAlignment = SWTGridData.BEGINNING; data.horizontalSpan = 2; body.add(addressPanel, data); ``` 
+```java
+setDefaultCloseOperation(EXIT_ON_CLOSE);
+setSize(400, 265);
+
+JPanel body = new JPanel(new SWTGridLayout(2, false));
+getContentPane().add(body);
+
+body.add(new JLabel("First Name:"));
+
+JTextField firstName = new JTextField();
+
+SWTGridData data = new SWTGridData();
+data.grabExcessHorizontalSpace = true;
+data.horizontalAlignment = SWTGridData.FILL;
+body.add(firstName, data);
+
+body.add(new JLabel("Last Name:"));
+
+JTextField lastName = new JTextField();
+
+data = new SWTGridData();
+data.grabExcessHorizontalSpace = true;
+data.horizontalAlignment = SWTGridData.FILL;
+body.add(lastName, data);
+
+JCheckBox address = new JCheckBox("Address");
+
+data = new SWTGridData();
+data.horizontalSpan = 2;
+data.horizontalIndent = 15;
+body.add(address, data);
+
+JPanel addressPanel = new JPanel(new SWTGridLayout(4, false));
+addressPanel.setBorder(BorderFactory.createEtchedBorder());
+
+data = new SWTGridData();
+data.grabExcessVerticalSpace = true;
+data.horizontalAlignment = SWTGridData.FILL;
+data.verticalAlignment = SWTGridData.BEGINNING;
+data.horizontalSpan = 2;
+body.add(addressPanel, data);
+```
 
  ![image](/assets/images/blog/wp-content/uploads/2008/02/image1.png)
 

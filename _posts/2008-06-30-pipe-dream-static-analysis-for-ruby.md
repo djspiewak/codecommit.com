@@ -26,7 +26,16 @@ But how could such a thing be accomplished in a language like Ruby?  After all,
 
 It was actually a recent post by James Ervin on [the nomenclature of type systems](<http://iacobus.blogspot.com/2008/06/dont-call-it-static-or-dynamic-language.html>) which got me thinking along these lines.  It should be possible by static analysis to infer the _structural_ type of any value based on its usage.  Consider:
 
-```ruby def do_something(obj) if obj.to_i == 0 obj[:test] else other = obj.find :name => 'Daniel' other.to_s end end ``` 
+```ruby
+def do_something(obj)
+  if obj.to_i == 0
+    obj[:test]
+  else
+    other = obj.find :name => 'Daniel'
+    other.to_s
+  end
+end
+```
 
 Just by examining this code, we can say certain things about the types involved.  For instance, we know that `obj` must respond to the following methods:
 
@@ -40,7 +49,9 @@ Now, at this point we have effectively built up a structural type which is accep
 
 So what is it all good for?  Well, imagine that somewhere else in our application, we have the following bit of code:
 
-```ruby do_something 42 ``` 
+```ruby
+do_something 42
+```
 
 This is something we _know_ will fail, because we have a simple value (42) which has a nominal type we can easily infer.  A little bit of checking on this type reveals the fact that it does not define square brackets, nor does it define a `find(Hash)` method.  This finding could be reported as an error by the analysis engine.
 

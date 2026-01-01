@@ -21,7 +21,62 @@ To start with, assuming that using Swing from within a scripting language solves
 
 ## Swing apps are slow to build
 
-That depends greatly on a number of factors, not the least of which is the capabilities of the developer in question. I can build a non-trivial Swing UI in a couple hours. I'm sure [Romain Guy](<http://www.curious-creature.org>) could do it in half that. Compare that to some developers who would take hours to build a simple, three element form. It's all relative. Some of the blog posts propose that using a dynamic language would help with this problem. Let's take a look: ```java public class TestClass { public static void main(String... args) { JFrame frame = new JFrame("Test Frame"); JLabel label = new JLabel("This is the header"); label.setFont(label.getFont().deriveFont(label.getFont().getSize2D() + 10)); frame.add(label, BorderLayout.NORTH); JPanel buttonPanel = new JPanel(); frame.add(buttonPanel); buttonPanel.add(new JButton("Button 1")); buttonPanel.add(new JButton("Button 2")); buttonPanel.add(new JButton("Button 3")); frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); frame.setSize(400, 200); frame.setVisible(true); } } ``` ![](http://blogs.dzone.com/daniel/files/2007/02/022207_0143_DoesSwingNe12.png) This took me about 3 minutes to whip together. Obviously this is a toy example, but it does illustrate the point that Swing isn't _that_ cryptic or bulky. Now, let's take a look at the corresponding JRuby code: ```ruby require 'java' JFrame = javax.swing.JFrame JLabel = javax.swing.JLabel JPanel = javax.swing.JPanel JButton = javax.swing.JButton BorderLayout = java.awt.BorderLayout frame = JFrame.new 'Test Frame' label = JLabel.new 'This is the header' label.font = label.font.deriveFont(label.font.size_2D + 10) frame.add(label, BorderLayout::NORTH) button_panel = JPanel.new frame.add button_panel button_panel.add JButton.new 'Button 1' button_panel.add JButton.new 'Button 2' button_panel.add JButton.new 'Button 3' frame.default_close_operation = JFrame::EXIT_ON_CLOSE frame.setSize(400, 200) frame.visible = true ``` Now, this took me just as long to put together as the example in Java. And I had already built the UI! Ruby is 1) a nice dynamic language, and 2) I had already done the work. Shouldn't this have gone much faster? Also, this doesn't seem too much clearer to me than the Java example. I mean, it's all Swing. One of the posts proposed that a generic (possibly XML based) overlay be created on top of Swing which would simplify development by only using Swing indirectly. Well, people have already done this (it's called XUL), and it isn't very popular outside of Mozilla.org But let's move on… 
+That depends greatly on a number of factors, not the least of which is the capabilities of the developer in question. I can build a non-trivial Swing UI in a couple hours. I'm sure [Romain Guy](<http://www.curious-creature.org>) could do it in half that. Compare that to some developers who would take hours to build a simple, three element form. It's all relative. Some of the blog posts propose that using a dynamic language would help with this problem. Let's take a look: 
+
+```java
+public class TestClass {
+    public static void main(String... args) {
+        JFrame frame = new JFrame("Test Frame");
+
+        JLabel label = new JLabel("This is the header");
+        label.setFont(label.getFont().deriveFont(label.getFont().getSize2D() + 10));
+        frame.add(label, BorderLayout.NORTH);
+
+        JPanel buttonPanel = new JPanel();
+        frame.add(buttonPanel);
+
+        buttonPanel.add(new JButton("Button 1"));
+        buttonPanel.add(new JButton("Button 2"));
+        buttonPanel.add(new JButton("Button 3"));
+
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(400, 200);
+        frame.setVisible(true);
+    }
+}
+```
+
+![](http://blogs.dzone.com/daniel/files/2007/02/022207_0143_DoesSwingNe12.png) This took me about 3 minutes to whip together. Obviously this is a toy example, but it does illustrate the point that Swing isn't _that_ cryptic or bulky. Now, let's take a look at the corresponding JRuby code: 
+
+```ruby
+require 'java'
+
+JFrame = javax.swing.JFrame
+JLabel = javax.swing.JLabel
+JPanel = javax.swing.JPanel
+JButton = javax.swing.JButton
+
+BorderLayout = java.awt.BorderLayout
+
+frame = JFrame.new 'Test Frame'
+
+label = JLabel.new 'This is the header'
+label.font = label.font.deriveFont(label.font.size_2D + 10)
+frame.add(label, BorderLayout::NORTH)
+
+button_panel = JPanel.new
+frame.add button_panel
+
+button_panel.add JButton.new 'Button 1'
+button_panel.add JButton.new 'Button 2'
+button_panel.add JButton.new 'Button 3'
+
+frame.default_close_operation = JFrame::EXIT_ON_CLOSE
+frame.setSize(400, 200)
+frame.visible = true
+```
+
+Now, this took me just as long to put together as the example in Java. And I had already built the UI! Ruby is 1) a nice dynamic language, and 2) I had already done the work. Shouldn't this have gone much faster? Also, this doesn't seem too much clearer to me than the Java example. I mean, it's all Swing. One of the posts proposed that a generic (possibly XML based) overlay be created on top of Swing which would simplify development by only using Swing indirectly. Well, people have already done this (it's called XUL), and it isn't very popular outside of Mozilla.org But let's move on… 
 
 ## Swing layout managers suck
 

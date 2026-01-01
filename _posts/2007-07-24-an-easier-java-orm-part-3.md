@@ -23,7 +23,58 @@ I'm hardly an expert in any of the above databases, so I welcome any and all inp
 
 ### Transactions
 
-While I might qualify transactions as comparatively unimportant, anyone who's written a multi-user web application knows how significant they can be in maintaining data integrity. An ORM which didn't support transactions would be sorely crippled indeed. Hibernate solves the problem of transactions by forcing every database action to be wrapped in a transaction and committed at the close. This works well, but the significant downside is that it increases code complexity and forces the developer to remember to explicitly close _every transaction._ As before, I've tried to take some inspiration from ActiveRecord's implementation of concepts: ```ruby p = Person.find(1) lc = LibraryCard.find(321) transaction do p.first_name = 'Daniel' p.last_name = 'Spiewak' p.save lc.person_name = 'Daniel Spiewak' lc.save end ``` As is typical of ActiveRecord, this is an amazingly intuitive syntax. Unfortunately, again in accordance with the ActiveRecord MO, it depends upon a very DSL-like syntax. We might not be able to match the syntax exactly in Java, but we can fairly close: ```java new Transaction(manager) { public void run() { Account david = getEntityManager().get(Account.class, 1); david.setValue(david.getValue() - 1000); david.save(); Account mary = getEntityManager().get(Account.class, 2); mary.setValue(mary.getValue() + 1000); mary.save(); } }.execute(); ``` Obviously, we could potentially have gone with the less verbose: ```java Transaction t = new Transaction(entityManager); t.begin(); // blah t.commit(); ``` However, this syntax doesn't have the major advantage of the ActiveRecord DSL which is ensuring the transaction is closed. Also, with our anonymous inner-class syntax, we can do something like this: ```java new Transaction(manager) { public void run() { // yadda yadda yadda } }.executeConcurrently(); ``` This will execute the transaction in a separate thread, rather than blocking the current one. I haven't actually seen a proper use-case for this so far, but it's bound to have some application. :-) 
+While I might qualify transactions as comparatively unimportant, anyone who's written a multi-user web application knows how significant they can be in maintaining data integrity. An ORM which didn't support transactions would be sorely crippled indeed. Hibernate solves the problem of transactions by forcing every database action to be wrapped in a transaction and committed at the close. This works well, but the significant downside is that it increases code complexity and forces the developer to remember to explicitly close _every transaction._ As before, I've tried to take some inspiration from ActiveRecord's implementation of concepts: 
+
+```ruby
+p = Person.find(1)
+lc = LibraryCard.find(321)
+
+transaction do
+    p.first_name = 'Daniel'
+    p.last_name = 'Spiewak'
+    p.save
+
+    lc.person_name = 'Daniel Spiewak'
+    lc.save
+end
+```
+
+As is typical of ActiveRecord, this is an amazingly intuitive syntax. Unfortunately, again in accordance with the ActiveRecord MO, it depends upon a very DSL-like syntax. We might not be able to match the syntax exactly in Java, but we can fairly close: 
+
+```java
+new Transaction(manager) {
+    public void run() {
+        Account david = getEntityManager().get(Account.class, 1);
+        david.setValue(david.getValue() - 1000);
+        david.save();
+
+        Account mary = getEntityManager().get(Account.class, 2);
+        mary.setValue(mary.getValue() + 1000);
+        mary.save();
+    }
+}.execute();
+```
+
+Obviously, we could potentially have gone with the less verbose: 
+
+```java
+Transaction t = new Transaction(entityManager);
+t.begin();
+// blah
+t.commit();
+```
+
+However, this syntax doesn't have the major advantage of the ActiveRecord DSL which is ensuring the transaction is closed. Also, with our anonymous inner-class syntax, we can do something like this: 
+
+```java
+new Transaction(manager) {
+    public void run() {
+        // yadda yadda yadda
+    }
+}.executeConcurrently();
+```
+
+This will execute the transaction in a separate thread, rather than blocking the current one. I haven't actually seen a proper use-case for this so far, but it's bound to have some application. :-) 
 
 #### Limitations
 

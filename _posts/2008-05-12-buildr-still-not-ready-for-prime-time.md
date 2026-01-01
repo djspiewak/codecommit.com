@@ -27,25 +27,54 @@ In general, this sort of transitive resolution is a good thing.  It means that 
 
 In Maven, this sort of thing happens by default, which can lead to some very confusing and subtle CLASSPATH problems (conflicting packages, etc).  Buildr takes a slightly different approach in 1.3 by forcing the use of the `transitive` method:
 
-```ruby repositories.remote << 'http://www.ibiblio.org/maven2' define 'MyCoolProject' do project.version = '1.0' compile.with transitive('xmlrpc:xmlrpc-server:jar:3.0') package :jar end ``` 
+```ruby
+repositories.remote << 'http://www.ibiblio.org/maven2'
+
+define 'MyCoolProject' do
+  project.version = '1.0'
+
+  compile.with transitive('xmlrpc:xmlrpc-server:jar:3.0')
+
+  package :jar
+end
+```
 
 It's easy to see why Buildr is raising such a ruckus in the build genre.  It's syntax is elegance itself, and since it's actually a proper scripting language (Ruby), there's really nothing you can't do with it.  Having to remember to specify the default repository is a bit of a pain, but it's certainly something I can live with.  The real problem with this example is a little less subtle: It doesn't work.
 
 If you create a `buildfile` with the above contents and then run the `buildr` command, the results will be something like the following:
 
-``` Downloading org.apache.xmlrpc:xmlrpc:jar:3.0 rake aborted! Failed to download org.apache.xmlrpc:xmlrpc:jar:3.0, tried the following repositories: http://www.ibiblio.org/maven2/ (See full trace by running task with --trace) ``` 
+```
+Downloading org.apache.xmlrpc:xmlrpc:jar:3.0
+rake aborted!
+Failed to download org.apache.xmlrpc:xmlrpc:jar:3.0, tried the following repositories:
+http://www.ibiblio.org/maven2/
+
+(See full trace by running task with --trace)
+```
 
 After a fairly significant amount of digging, I managed to discover that this problem is caused by the fact that Buildr attempts to download a corresponding JAR file for _every_ POM it resolves.  This seems logical until you consider that many large projects (including Databinder, Wicket, and Hibernate) define POM-only projects which exist for the sole purpose of creating transitive dependencies.  They're organizational units, designed to allow projects to depend upon one super-artifact, rather than a dozen sub-projects.  It's a very common practice, and one which Buildr completely fails to handle appropriately.
 
 After some prodding on the Buildr dev mailing-list, Assaf admitted that this is an issue worth looking at and provided a temporary workaround (pending a rework of the functionality in 1.4):
 
-```ruby def pom_only(a) artifact a do |task| mkpath File.dirname(task.to_s) Zip::ZipOutputStream.open task.to_s end end ``` 
+```ruby
+def pom_only(a)
+  artifact a do |task|
+    mkpath File.dirname(task.to_s)
+    Zip::ZipOutputStream.open task.to_s
+  end
+end
+```
 
 This was about the point that I started wondering if maybe Ant/Ivy would be a better bet, at least for the time being.  To use this workaround, you must call the `pom_only` method once for _every_ POM-only project in the dependency graph.  Usually, this means you must invoke Buildr repeatedly and find the troublesome artifacts by trial and error.  Not exactly a "just works" solution.
 
 Pressing forward however, I unearthed a deeper, even more insidious issue: an intermittent failure to generate Eclipse project meta.  I'm not sure if this is due to the POM-only dependencies or just bad juju, but whatever the reason, it's annoying.  I've raised the issue on the Buildr mailing lists, but so far no response.  Basically, what happens is something like this:
 
-``` C:\\\Users\\\Daniel Spiewak\\\Desktop\\\MyCoolProject> buildr eclipse (in C:/Users/Daniel Spiewak/Desktop/MyCoolProject, development) Completed in 0.499s C:\\\Users\\\Daniel Spiewak\\\Desktop\\\MyCoolProject> ``` 
+```
+C:\\Users\\Daniel Spiewak\\Desktop\\MyCoolProject> buildr eclipse
+(in C:/Users/Daniel Spiewak/Desktop/MyCoolProject, development)
+Completed in 0.499s
+C:\\Users\\Daniel Spiewak\\Desktop\\MyCoolProject>
+```
 
 Not exactly the most helpful output.  In case you were wondering, this process did not create the Eclipse metadata.  It's interesting to note that calling `buildr idea` (to create project metadata for IntelliJ) seems to work just fine.  Whatever causes the bug, it seems to be specific to just the Eclipse project generator.
 

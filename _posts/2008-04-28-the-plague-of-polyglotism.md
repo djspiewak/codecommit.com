@@ -12,7 +12,26 @@ For those of you who don't know, polyglotism is not some weird religion but actu
 
 As a basic example, we could write a Wicket component which makes use of Ruby's RedCloth library for working with Textile.  Because of Scala's flexible syntax, we can use it to perform the interop between Wicket and Ruby using an [internal DSL](<http://www.codecommit.com/blog/ruby/jruby-interop-dsl-in-scala>):
 
-```scala class TextileLabel(id:String, model:IModel) extends WebComponent(id, model) with JRuby { require("textile_utils") override def onComponentTagBody(stream:MarkupStream, openTag:ComponentTag) { replaceComponentTagBody(markupStream, openTag, 'textilize(model.getObject().toString())) } } ``` ```ruby # textile_utils.rb require 'redcloth' def textilize(text) doc = RedCloth.new text doc.to_html end ``` 
+```scala
+class TextileLabel(id:String, model:IModel) extends WebComponent(id, model) with JRuby {
+  require("textile_utils")
+  
+  override def onComponentTagBody(stream:MarkupStream, openTag:ComponentTag) {
+    replaceComponentTagBody(markupStream, openTag, 
+        'textilize(model.getObject().toString()))
+  }
+}
+```
+
+```ruby
+# textile_utils.rb
+require 'redcloth'
+
+def textilize(text)
+  doc = RedCloth.new text
+  doc.to_html
+end
+```
 
 **Warning:** Untested code
 

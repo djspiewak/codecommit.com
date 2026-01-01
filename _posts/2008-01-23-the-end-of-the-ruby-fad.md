@@ -14,11 +14,15 @@ It seems more and more these days like people just don't want to hear about Ruby
 
 Personally, [I'm with Reganwald](<http://weblog.raganwald.com/2008/01/ruby-is-soooooo-2002.html>) on this one.  I started coding with Ruby back in 2002 (or was it 2001?  I can't remember now).  It was actually at the recommendation of some random guy on a forum who said that Ruby was a nice and clean language with a lot of potential.  I was getting pretty tired of Java at that point, so I figured I'd give it a try.  Since then, Ruby has become part of my essential scripting toolset, finding applications everywhere from complex utility scripts, build systems and even hacky dynamic web pages for my server monitoring tools.  Based on the strength of the language, I've tried Rails a few times without success.  I mean, honestly which is easier to remember?
 
-```ruby link_to :page => "" ``` 
+```ruby
+link_to :page => ""
+```
 
 ...or,
 
-```html4strict [](<>) ``` 
+```html4strict
+<a href=""></a>
+```
 
 The middle ground is really where Ruby belongs, where it flourishes.  It's hardly a general-purpose language, so it could never replace Java and company.  With that said, it's far easier to write an incremental backup script in Ruby than in Java.  And while Ruby may not be suitable for an enterprise level, high-traffic web application, it's certainly up for some tasks _within_ that application.  It's also perfect for managing scripting and rapid prototyping against that application infrastructure.  Unfortunately the community as a whole seems either blind to its benefits or blinded by its hype.
 

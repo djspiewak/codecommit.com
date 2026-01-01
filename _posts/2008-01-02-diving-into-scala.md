@@ -22,11 +22,15 @@ Things were flowing smoothly, and I was just starting to pick up steam when my p
 
 In Scala, arrays are objects just like any other.  Yes, I'm sure you heard that when transitioning to Java, but Scala really carries the concept through to its full character (think Ruby arrays).  This is how you allocate an array of size 5 in Scala:
 
-```scala var array = new Array[String](5) ``` 
+```scala
+var array = new Array[String](5)
+```
 
 Or, if you just have a set of static values, you can use the factory method (ish, more on that later):
 
-```scala var names = Array("daniel", "chris", "joseph", "renee", "bethany", "grace") ``` 
+```scala
+var names = Array("daniel", "chris", "joseph", "renee", "bethany", "grace")
+```
 
 It was at this point that my warning sirens began going off.  Any syntax which looks even remotely like C++ deserves extremely close scrutiny before it should be used.
 
@@ -34,55 +38,148 @@ The first invocation is fairly straightforward.  We're creating a new instance 
 
 The second syntax is a bit more complex.  It is best understood once a bit of groundwork is laid analyzing the rest of the array syntax:
 
-```scala var array = new Array[String](5) array(0) = "daniel" array(1) = "chris" println(array(0)) ``` 
+```scala
+var array = new Array[String](5)
+array(0) = "daniel"
+array(1) = "chris"
+println(array(0))
+```
 
 No, that's not a typo. Scala uses parentheses to access array values, not the C-style square brackets which have become the standard.  By this time, the syntax was starting to look more and more like BASIC and the warning sirens had become full-blown air raid alerts.  My vision blurred, my knees got week and I desperately groped for a fresh slice of pizza.  Any language that reminds me of C++ and VB6 successively within the span of 30 seconds deserves not just scrutiny, but all-out quarantine.
 
 It turns out that somewhere in the _Array_ class, there's a set of declarations that look like this:
 
-```scala class Array[T](size:Int) { def apply(index:Int):T = { // return the value from the underlying data structure } def update(index:Int, value:T):Unit { // set the value at the corresponding index } // ... } ``` 
+```scala
+class Array[T](size:Int) {
+  def apply(index:Int):T = {
+    // return the value from the underlying data structure
+  }
+
+  def update(index:Int, value:T):Unit {
+    // set the value at the corresponding index
+  }
+
+  // ...
+}
+```
 
 Ouch!  Seems the other shoe just dropped.  It turns out that the _apply_ and _update_ methods are special magic functions enabling the array access and modification syntax.  The same code in C++ might look like this:
 
-```cpp template  class Array { public: Array(int length); T& operator()(int index); private: // ... }; ``` 
+```cpp
+template <class T>
+class Array {
+public:
+    Array(int length);
+
+    T& operator()(int index);
+
+private:
+    // ...
+};
+```
 
 For those of you who don't know, there's a reason that syntax passed into "bad practice" years ago.  In short: it's cryptic, relies heavily on magic syntax tricks (thus is quite fragile) and by its very nature redefines an operation that is understood to be basic to the language (parentheses).  It's the absolute worse that operator overloading has to offer.
 
 But the fun doesn't stop there!  Remember I said the (sort of) array factory constructor would make more sense after analyzing arrays a bit more?  You probably know where I'm going with this...
 
-```scala object Array { def apply[T](values:*T) = values } class Array[T](length:Int) { // ... } ``` 
+```scala
+object Array {
+  def apply[T](values:*T) = values
+}
+
+class Array[T](length:Int) {
+  // ...
+}
+```
 
 Try not to think about it too much, it'll make your brain hurt.  Scala doesn't really have a static scope, so any class that needs to do things statically (like factories) has to use the singleton construct ( _object_ ).  Extend this concept just a bit and you can see how classes which must be _both_ instance _and_ static can run into some trouble.  Thus, Scala allows the definition of both the singleton and the class form of the same type.  In Java, the same concept might look like this:
 
-```java public class Array { public Array(int length) { // ... } // ... public static  Array createInstance(V... values) { // ... } } ``` 
+```java
+public class Array<T> {
+    public Array(int length) {
+        // ...
+    }
+
+    // ...
+
+    public static <V> Array<V> createInstance(V... values) {
+        // ...
+    }
+}
+```
 
 Obviously the correspondence isn't exact since Java array syntax can't be replicated by mere mortals, but you get the gist of it.  It seems this is one time when Scala syntax _isn't_ more concise or more intuitive than Java.
 
 So what does this all mean for our array factory construct?  It means we're not actually looking at a method, at least, not a method named "Array" as we might reasonably expect.  The array factory construct can be written equivalently in this fashion:
 
-```scala var names = Array.apply("daniel", "chris", "joseph", "renee", "bethany", "grace") ``` 
+```scala
+var names = Array.apply("daniel", "chris", "joseph", "renee", "bethany", "grace")
+```
 
 Are you starting to see why overloading the parentheses operator is considered bad form in civilized lands?  The syntax may look nice, properly used, but it's a major pain in the behind if you have to read someone else's badly-designed code to understand what's going on if you can't rely on parentheses to be parentheses.
 
 Things keep going from bad to worse when you consider all the trouble you can get into with method declarations.  Try this one on for size:
 
-```scala class Pawn { def getSymbol = "P" } ``` 
+```scala
+class Pawn {
+  def getSymbol = "P"
+}
+```
 
 Famously concise and readable...except it's not going to do what you probably expect it to.  To use this class, you might write something like this:
 
-```scala var pawn = new Pawn println(pawn.getSymbol()) ``` 
+```scala
+var pawn = new Pawn
+println(pawn.getSymbol())
+```
 
 The above code will fail with a compiler error on line 2, saying that we passed the wrong number of arguments to the _getSymbol_ method.  Here's a heads-up to those of you designing the Scala syntax: this confuses the hell out of any newbie trying the language for the first time.  It turns out that declaring a method without parentheses means that it can never be invoked _with_ those parentheses.  Changing the invocation to the following alleviates the error:
 
-```scala println(pawn.getSymbol) ``` 
+```scala
+println(pawn.getSymbol)
+```
 
 And just when you're beginning to make sense of all this, you remember that declaring a method _with_ parentheses means that it can be used both ways!  So the following code is all valid:
 
-```scala class Pawn { def getSymbol() = "P" } var pawn = new Pawn // method 1 println(pawn.getSymbol()) // method 2 println(pawn.getSymbol) // method 3 println(pawn getSymbol) ``` 
+```scala
+class Pawn {
+  def getSymbol() = "P"
+}
+
+var pawn = new Pawn
+
+// method 1
+println(pawn.getSymbol())
+
+// method 2
+println(pawn.getSymbol)
+
+// method 3
+println(pawn getSymbol)
+```
 
 One final, related tidbit just in case you thought these were isolated examples.  It may come as a shock to those of you coming from C-derivative languages (such as Java), but Scala doesn't support constructor overloading.  Seriously, there's no way to define multiple constructors for a class in Scala.  Of course, like many other things Scala provides a way to _emulate_ the syntax, but it's far from pretty.  Let's suppose you want to be able to construct a _Person_ with either a full name, a first and last name or a first name, last name and age.
 
-```scala object Person { def apply(fullName:String) = { var names = fullName.split(' ') Person(names(0), names(1)) } def apply(firstName:String, lastName:String) = Person(firstName, lastName, 20) } case class Person(firstName:String, lastName:String, age:Int) { def getFirstName() = firstName def getLastName() = lastName def getAge() = age } var person1 = Person("Daniel Spiewak") var person2 = Person("Jonas", "Quinn") var person3 = Person("Rebecca", "Valentine", 42) ``` 
+```scala
+object Person {
+  def apply(fullName:String) = {
+    var names = fullName.split(' ')
+    Person(names(0), names(1))
+  }
+
+  def apply(firstName:String, lastName:String) = Person(firstName, lastName, 20)
+}
+
+case class Person(firstName:String, lastName:String, age:Int) {
+  def getFirstName() = firstName
+  def getLastName() = lastName
+  def getAge() = age
+}
+
+var person1 = Person("Daniel Spiewak")
+var person2 = Person("Jonas", "Quinn")
+var person3 = Person("Rebecca", "Valentine", 42)
+```
 
 _"Where are your Rebel friends now?!"_
 

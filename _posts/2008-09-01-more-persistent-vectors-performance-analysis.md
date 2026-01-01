@@ -51,7 +51,24 @@ By contrast, `Vector` uses an extremely high branching factor (by default) and s
 
 The only answer I can think of to explain the disparity between `IntMap` and `Vector` (both in time and in space utilization) is the use of a `List[Int]` in `Vector` to find the target node in the data structure. This `List` is required primarily because I wanted the data distribution in the trie to be optimized for sequential access, therefore requiring the trie encoding to be big-endian on the index rather than little-endian. The unfortunate truth is there's no clean mathematical method (that I know of) which would allow the deconstruction of a number based on its most significant value in an arbitrary base. In fact, the implementation of `computePath` (as suggested by Jules) actually cheats and makes use of the fact that persistent `List`(s) are constructed from the tail-end:
 
-```scala @inline def computePath(total: Int, base: Int) = { if (total < 0) { throw new IndexOutOfBoundsException(total.toString) } else { var back: List[Int] = Nil var num = total do { back = (num % base) :: back num /= base } while (num > 0) back } } ``` 
+```scala
+@inline
+def computePath(total: Int, base: Int) = {
+  if (total < 0) {
+    throw new IndexOutOfBoundsException(total.toString)
+  } else {
+    var back: List[Int] = Nil
+    var num = total
+    
+    do {
+      back = (num % base) :: back
+      num /= base
+    } while (num > 0)
+    
+    back
+  }
+}
+```
 
 As efficient as this method is on most modern processors, it can never be as fast as a simple bit-masking operation. Not only that, but it requires the creation of massive numbers of small, immutable objects (cons cells). I believe that it is this instantiation overhead which is eating up the extra memory on reads and killing the overall performance.
 

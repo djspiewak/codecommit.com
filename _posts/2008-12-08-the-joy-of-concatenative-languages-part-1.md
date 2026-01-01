@@ -24,23 +24,34 @@ Er, right.  I didn't find that very helpful either.  Let's try again...
 
 Stack-based programming languages all share a common element: an operand stack.  Consider the following program:
 
-```cat 2 ``` 
+```cat
+2
+```
 
 Yes, this is a real program.  You can copy this code and run/compile it unmodified using most stack-based languages.  However, for reasons which will become clear later in this series, I will be using [Cat](<http://www.cat-language.com>) for most of my examples.  Joy and Factor would both work well for the first two parts, but for part three we're going to need some rather unique features.
 
 Returning to our example: all this will do is take the numeric value of `2` and push it onto the operand stack.  Since there are no further _words_ , the program will exit.  If we want, we can try something a little more interesting:
 
-```cat 2 3 + ``` 
+```cat
+2 3 +
+```
 
 This program first pushes 2 onto the stack, then 3, and finally it pops the top two values off of the stack, adds them together and pushes the result.  Thus, when this program exits, the stack will only contain `5`.
 
 We can mix and match these operations until we're blue in the face, but it's still not a terribly interesting language.  What we really need is some sort of flow control.  To do that, we need to understand quotations.  Consider the following Scala program:
 
-```scala val plus = { (x: Int, y: Int) => x + y } plus(2, 3) ``` 
+```scala
+val plus = { (x: Int, y: Int) => x + y }
+plus(2, 3)
+```
 
 Notice how rather than directly adding `2` and `3`, we first create a closure/lambda which encapsulates the operation.  We then invoke this closure, passing `2` and `3` as arguments.  We can emulate these exact semantics in Cat:
 
-```cat 2 3 [ + ] apply ``` 
+```cat
+2 3
+[ + ]
+apply
+```
 
 The first line pushes `2` and `3` onto the stack.  The second line uses square brackets to define a quotation, which is Cat's version of a lambda.  Note that it isn't really a closure since there are no variables to en _close_.  Joy and Factor also share this construct.  Within the quotation we have a single word: `+`.  The important thing is the quotation itself is what is put on the stack; the `+` word is not immediately executed.  This is exactly how we declared `plus` in Scala.
 
@@ -55,19 +66,34 @@ Cat also provides a number of primitive operations which perform their dirty wor
 
 There are other primitives, but these are the big four.  It is possible to emulate any control structure (such as `if`/`then`) just using the language shown so far.  However, to do so would be pretty ugly and not very useful.  Cat does provide some other operations to make life a little more interesting.  Most significantly: functions and conditionals.  A function is defined in the following way:
 
-```cat define plus { + } ``` 
+```cat
+define plus { + }
+```
 
 Those coming from a programming background involving variables (that would be just about all of us) would probably look at this function and feel as if something is missing.  The odd part of this is there is no need to declare parameters, all operands are on the stack anyway, so there's no need to pass anything around explicitly.  This is part of why concatenative languages are so extraordinarily concise.
 
 Conditionals also look quite weird at first glance, but under the surface they are profoundly elegant:
 
-```cat 2 3 plus // invoke the `plus` function 10 < [ 0 ] [ 42 ] if ``` 
+```cat
+2 3 plus    // invoke the `plus` function
+10 <
+[ 0 ]
+[ 42 ]
+if
+```
 
 Naturally enough, this code pushes `0` onto the stack.  The conditional for an `if` is just a boolean value pushed onto the stack.  On top of that value, `if` will expect to find two quotations, one for the "then" branch and the other for the "else" branch.  Since `5` is less than `10`, the boolean value will be `True`.  The `if` function (and it could just as easily be a function) pops the quotations off of the stack as well as the boolean.  Since the value is `True`, it discards the second quotation and executes the first, producing `0` on the stack.
 
 I'll leave you with the more complicated example of the factorial function:
 
-```cat define fac { dup 0 eq [ pop 1 ] [ dup 1 - fac * ] if } ``` 
+```cat
+define fac {
+  dup 0 eq
+  [ pop 1 ]
+  [ dup 1 - fac * ]
+  if
+}
+```
 
 Note that this isn't even the most concise way of writing this, but it does the job.  To see how, let's look at how this will execute word-by-word (assuming an input of `4`):
 

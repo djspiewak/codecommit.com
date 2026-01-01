@@ -13,7 +13,37 @@ JRuby is an amazing bit of programming.  It has managed to rise from its humble
 
 There's a lot of material out there on how to replace Java with Ruby "glue code" in your application.  The so-called "[polyglot programming](<http://memeagora.blogspot.com/2006/12/polyglot-programming.html>)" technique states that we should embrace multiplicity of language in our applications.  Java may be very suitable for the core business logic of the application, but for actually driving the frontend UI, we may want to use something more expressive (like Ruby).  JRuby provides some powerful constructs which allow access to Java classes from within any Ruby application.  For example:
 
-```ruby require 'java' JFrame = javax.swing.JFrame JButton = javax.swing.JButton JLabel = javax.swing.JLabel BorderLayout = java.awt.BorderLayout class MainWindow < JFrame def initialize super 'My Test Window' setSize(300, 200) setDefaultCloseOperation EXIT_ON_CLOSE label = JLabel.new('You pushed the button', JLabel::CENTER) label.visible = false add label button = JButton.new 'Push Me' button.add_action_listener do label.visible = true end add(button, BorderLayout::SOUTH) end end window = MainWindow.new window.visible = true ``` 
+```ruby
+require 'java'
+
+JFrame = javax.swing.JFrame
+JButton = javax.swing.JButton
+JLabel = javax.swing.JLabel
+
+BorderLayout = java.awt.BorderLayout
+
+class MainWindow < JFrame
+  def initialize
+    super 'My Test Window'
+
+    setSize(300, 200)
+    setDefaultCloseOperation EXIT_ON_CLOSE
+    
+    label = JLabel.new('You pushed the button', JLabel::CENTER)
+      label.visible = false
+    add label
+
+    button = JButton.new 'Push Me'
+    button.add_action_listener do
+      label.visible = true
+    end
+    add(button, BorderLayout::SOUTH)
+  end
+end
+
+window = MainWindow.new
+window.visible = true
+```
 
 ![sshot-1](/assets/images/blog/wp-content/uploads/2008/03/sshot-1.png)  ![sshot-2](/assets/images/blog/wp-content/uploads/2008/03/sshot-2.png) 
 
@@ -27,7 +57,19 @@ Likely the reason this topic has received less attention is because Java is the 
 
 There is _some_ information [available](<http://wiki.jruby.org/wiki/Java_Integration>) on the JRuby Wiki.  The wiki article really should include the caveat that "some experimentation may be required."  Sufficient information is available, but it is neither intuitive nor convenient.  From Java, the syntax for executing an arbitrary Ruby statement looks like this:
 
-```java ScriptEngineManager m = new ScriptEngineManager(); ScriptEngine rubyEngine = m.getEngineByName("jruby"); ScriptContext context = engine.getContext(); context.setAttribute("label", new Integer(4), ScriptContext.ENGINE_SCOPE); try { rubyEngine.eval("puts 2 + $label", context); } catch (ScriptException e) { e.printStackTrace(); } ``` 
+```java
+ScriptEngineManager m = new ScriptEngineManager();
+ScriptEngine rubyEngine = m.getEngineByName("jruby");
+ScriptContext context = engine.getContext();
+
+context.setAttribute("label", new Integer(4), ScriptContext.ENGINE_SCOPE);
+
+try {
+    rubyEngine.eval("puts 2 + $label", context);
+} catch (ScriptException e) {
+    e.printStackTrace();
+}
+```
 
 It's a typical Java API: over-bloated, over-designed and over-generic.  What would be really nice is to have a syntax for accessing Ruby objects that is as seamless as accessing Java from Ruby.  I want to be able to call Ruby methods and use Ruby classes with the same ease that I can use Java methods and classes.  In short, I want an internal DSL for Ruby.
 
@@ -39,11 +81,71 @@ The good news is there's another language tightly integrated with Java that has 
 
 Since we're attempting to construct a tightly-integrated API for language calls, the most effective route would be to apply techniques [already discussed](<http://www.codecommit.com/blog/ruby/xmlbuilder-a-ruby-dsl-case-study>) in the context of DSL design.  As always, we start with the syntax and allow it to drive the implementation:
 
-```scala // syntax.scala import com.codecommit.scalaruby._ object Main extends Application with JRuby { require("test") associate('Person)(new Person("")) println("Received from multiply: " + 'multiply(123, 23)) println("Functional test: " + funcTest('test_string)) val me = new Person("Daniel Spiewak") println("Name1: " + me.name) println("Name2: " + (me->'name)()) me.name = "Daniel" println("New Name: " + me.name) println("Person#toString(): " + me) val otherPerson = 'create_person().asInstanceOf[AnyRef] println("create_person type: " + otherPerson.getClass()) println("create_person value: " + otherPerson.send[String]("name")()) eval("puts 'Ruby integration is amazing'") def funcTest(fun:(Any*)=>String) = fun() } class Person(name:String) extends RubyClass('Person, name) { def name = send[String]("name")() def name_=(n:String) = 'name = n } ``` 
+```scala
+// syntax.scala
+import com.codecommit.scalaruby._
+
+object Main extends Application with JRuby {
+  require("test")
+  
+  associate('Person)(new Person(""))
+  
+  println("Received from multiply: " + 'multiply(123, 23))
+  println("Functional test: " + funcTest('test_string))
+  
+  val me = new Person("Daniel Spiewak")
+  println("Name1: " + me.name)
+  println("Name2: " + (me->'name)())
+  
+  me.name = "Daniel"
+  println("New Name: " + me.name)
+  
+  println("Person#toString(): " + me)
+  
+  val otherPerson = 'create_person().asInstanceOf[AnyRef]
+  println("create_person type: " + otherPerson.getClass())
+  println("create_person value: " + otherPerson.send[String]("name")())
+  
+  eval("puts 'Ruby integration is amazing'")
+  
+  def funcTest(fun:(Any*)=>String) = fun()
+}
+
+class Person(name:String) extends RubyClass('Person, name) {
+  def name = send[String]("name")()
+  def name_=(n:String) = 'name = n
+}
+```
 
 And the associated Ruby code:
 
-```ruby # test.rb class Person attr_reader :name attr_writer :name def initialize(name) @name = name end def to_s "Person: {name=#{name}}" end end def test_string 'Daniel Spiewak' end def multiply(a, b) a * b end def create_person Person.new 'Test Person' end ``` 
+```ruby
+# test.rb
+class Person
+  attr_reader :name
+  attr_writer :name
+  
+  def initialize(name)
+    @name = name
+  end
+  
+  def to_s
+    "Person: {name=#{name}}"
+  end
+end
+
+def test_string
+  'Daniel Spiewak'
+end
+
+def multiply(a, b)
+  a * b
+end
+
+def create_person
+  Person.new 'Test Person'
+end
+```
 
 Obviously we're going to need some heavy implicit type conversions.  The important thing to note is that we don't see any residue of the Java Scripting API, it's all been encapsulated by our DSL.  We've taken an API which is oriented around single-call, low-level invocations and created a high-level wrapper framework which allows method calls, instantiation and even some form of type-checking.
 
@@ -55,11 +157,48 @@ On the next line of interest, we see for the first time how the framework allows
 
 The key to the whole "symbols as methods" idea is implicit type conversion.  The `JRuby` trait inherits a set of conversions which look something like this:
 
-```scala implicit def sym2Method[R](sym:Symbol):(Any*)=>R = send[R](sym2string(sym)) implicit def sym2MethodAssign[R](sym:Symbol) = new SpecialMethodAssign[R](sym) private[scalaruby] class SpecialMethodAssign[R](sym:Symbol) { def intern_=(param:Any) = new RubyMethod[R](str2sym(sym2string(sym) + "="))(param) } ``` 
+```scala
+implicit def sym2Method[R](sym:Symbol):(Any*)=>R = send[R](sym2string(sym))
+implicit def sym2MethodAssign[R](sym:Symbol) = new SpecialMethodAssign[R](sym)
+
+private[scalaruby] class SpecialMethodAssign[R](sym:Symbol) {
+  def intern_=(param:Any) = new RubyMethod[R](str2sym(sym2string(sym) + "="))(param)
+}
+```
 
 Though we haven't looked at it yet, it is possible to infer the purpose of the `send(String)` method.  It's function is to prepare a call to a Ruby method without actually invoking it.  This distinction allows us to pass Ruby methods around as method parameters, just like standard Scala methods.  The method returned is actually an instance of class `RubyMethod[R]` (where `R` is the return type).  Scala allows classes to extend structural types like methods, allowing us to redefine the method invocation semantics for wrapped Ruby calls.
 
-```scala class RubyMethod[R](method:Symbol) extends ((Any*)=>R) { import JRuby.engine override def apply(params:Any*) = call(params.toArray) private[scalaruby] def call(params:Array[Any]):R = { val context = engine.getContext() val plist = new Array[String](params.length) for (i <\- 0 until params.length) { plist(i) = "res" + i context.setAttribute(plist(i), JRuby.resolveValue(params(i)), ScriptContext.ENGINE_SCOPE) plist(i) = "$" + plist(i) } evaluate(() => if (plist.length > 0) { sym2string(method) + "(" + plist.reduceLeft[String](_ + ", " + _) + ")" } else { sym2string(method) + "()" }) } protected def evaluate(invoke:()=>String):R = { val toRun = invoke() Logger.getLogger("com.codecommit.scalaruby").info(toRun) JRuby.handleExcept(JRuby.wrapValue[R](engine, engine.eval(toRun, engine.getContext()))) } } ``` 
+```scala
+class RubyMethod[R](method:Symbol) extends ((Any*)=>R) {
+  import JRuby.engine
+  
+  override def apply(params:Any*) = call(params.toArray)
+  
+  private[scalaruby] def call(params:Array[Any]):R = {
+    val context = engine.getContext()
+    val plist = new Array[String](params.length)
+    
+    for (i <- 0 until params.length) {
+      plist(i) = "res" + i
+      context.setAttribute(plist(i), JRuby.resolveValue(params(i)), ScriptContext.ENGINE_SCOPE)
+      plist(i) = "$" + plist(i)
+    }
+    
+    evaluate(() => if (plist.length > 0) {
+      sym2string(method) + "(" + plist.reduceLeft[String](_ + ", " + _) + ")"
+    } else {
+      sym2string(method) + "()"
+    })
+  }
+  
+  protected def evaluate(invoke:()=>String):R = {
+    val toRun = invoke()
+    Logger.getLogger("com.codecommit.scalaruby").info(toRun)
+    
+    JRuby.handleExcept(JRuby.wrapValue[R](engine, engine.eval(toRun, engine.getContext())))
+  }
+}
+```
 
 The gist of this code is simply to assign every parameter value to an attribute in the Ruby runtime.  Attributes of `ENGINE_SCOPE` (as defined by JSR-233) are represented as global variables within Ruby.  These variables are named sequentially starting from zero.  (e.g. `$res0`, `$res1`, ...)  As you can imagine, this technique tends to be a bit of a concurrency killer.  To keep things simple, I decided to completely ignore the issues associated with asynchronous execution.  It is certainly possible to adapt the framework to function in a multi-threaded environment, but I didn't bother to do it.  (one of the perks of blogging is a license to extreme laziness)
 
@@ -88,7 +227,10 @@ Using the arrow operator is a lot like normal method calls, except with symbols 
 
 Parentheses have the second-highest priority of all the Scala operators (the dot operator (.) has the highest).  This means that if we simply "follow our nose" where the syntax is concerned, we will arrive at an order of invocation which leads to an undesirable result.  Consider the following sample:
 
-```scala val obj = 'create_person() obj->'name() ``` 
+```scala
+val obj = 'create_person()
+obj->'name()
+```
 
 The first call is a standard dispatch on the enclosing scope.  The second call is what is interesting to us.  Reading this line naturally (at least to old C/C++ programmers) we would arrive at the following sequence of events:
 
@@ -105,19 +247,33 @@ This is obviously not what we wanted.  Unfortunately, there's no way to make th
 
 The solution is to enclose any "arrow dispatch" statement within parentheses so as to force the order of evaluation:
 
-```scala val obj = 'create_person() (obj->'name)() ``` 
+```scala
+val obj = 'create_person()
+(obj->'name)()
+```
 
 It looks a bit weird, but it's the only way Scala will allow this to work.  This call now evaluates properly, calling the `name` method on the `obj` instance, passing no parameters.
 
 There's actually another problem associated with arrow dispatch in our DSL: Scala already has an implicit meaning for the arrow operator.  The following sample should look familiar to those of you who have worked with Scala in other applications:
 
-```scala val numbers = Map(1 -> "one", 2 -> "two", 3 -> "three") ``` 
+```scala
+val numbers = Map(1 -> "one", 2 -> "two", 3 -> "three")
+```
 
 By default, Scala defines the arrow operator as an alternative syntax for defining [2-tuples](<http://www.codecommit.com/blog/scala/scala-for-java-refugees-part-6>).  This is good for most things, but bad for us.  What we want is to define a new implicit type conversion which converts `Any` into a corresponding instance of `RubyWrappedObject`.  This would allow us to satisfy the syntax given above.  However, Scala's 2-tuple syntax already defines an implicit type conversion for the `Any` type which deals with the arrow operator.  Rather than examining the context to attempt to disambiguate, the Scala compiler simply gives up and prints an error stating that the implicit type conversions are ambiguous.  This poses a bit of a problem and nearly killed the arrow operator idea in design.
 
 The solution is actually to override Scala's built-in conversion by defining our own conversion _with the same name and signature_ but which provides us with the option of using our own arrow operator definition.  The behavior we want is to allow normal use of the arrow operator when dealing with `Any -> Any`, but convert to `RubyWrappedObject` and dispatch when dealing with `Any -> Symbol`.  After a little digging through the Scala standard library, I arrived at the following solution (defined in `RubyObject`):
 
-```scala implicit def any2ArrowAssoc[A](a:A) = new SpecialArrowAssoc(a) private[scalaruby] class SpecialArrowAssoc[A](a:A) extends ArrowAssoc(a) { def ->(sym:Symbol) = (a match { case obj:RubyObject => obj case other => new RubyWrapperObject(other) })->sym } ``` 
+```scala
+implicit def any2ArrowAssoc[A](a:A) = new SpecialArrowAssoc(a)
+
+private[scalaruby] class SpecialArrowAssoc[A](a:A) extends ArrowAssoc(a) {
+  def ->(sym:Symbol) = (a match {
+    case obj:RubyObject => obj
+    case other => new RubyWrapperObject(other)
+  })->sym
+}
+```
 
 Notice that we extend Scala's pre-existing `ArrowAssoc[A]` class (which handles the special 2-tuple syntax) and then overload the `->` method to work differently with symbols.  This code now does precisely what we need.  By introducing this extra layer of indirection, as well as by overriding Scala's existing conversion, we're able to support the arrow syntax as shown in the above examples.
 
@@ -125,7 +281,11 @@ Notice that we extend Scala's pre-existing `ArrowAssoc[A]` class (which handles 
 
 There is one final form of dispatch which allows typed return values: `send[R](String)`.  This is actually the method to which all the other dispatch forms delegate (as it is the most general).  This method is very similar to the Ruby `send` method which allows Smalltalk-style message passing on arbitrary objects.  The really important thing about this method though is that it will automatically cast the return value from the method to whatever type you specify, allowing you to define type-safe wrappers around existing Ruby methods in Scala:
 
-```scala def multiply(a:Int, b:Int) = send[Int]("multiply")(a, b) val result:Int = multiply(123, 23) ``` 
+```scala
+def multiply(a:Int, b:Int) = send[Int]("multiply")(a, b)
+
+val result:Int = multiply(123, 23)
+```
 
 `send` is effectively defined as a curried function since it takes a method name as a parameter and returns an instance of `RubyMethod` as a result.  This mimics the behavior of dispatch with symbol literals in that you can use `send` to generate type-safe partially-applied functions for corresponding Ruby methods.
 
@@ -137,7 +297,12 @@ The final bit of code in the example now so far above us serves as a sample of h
 
 The goal is basically to provide a type-safe wrapper around the `Person` Ruby class.  We could just as easily dispatch on the automatically wrapped instance of `RubyWrappedObject` using either syntax described above, but an explicit wrapper is a bit nicer.  The compiler can check things for us, and we can even add methods to the class (at least, as far as Scala is concerned) in true Ruby "open class" style.  All that is necessary to accomplish this wrapper is to extend `RubyClass` and to define the delegating wrapper methods:
 
-```scala class Person(name:String) extends RubyClass('Person, name) { def name = send[String]("name")() def name_=(n:String) = 'name = n } ``` 
+```scala
+class Person(name:String) extends RubyClass('Person, name) {
+  def name = send[String]("name")()
+  def name_=(n:String) = 'name = n
+}
+```
 
 We specify which Ruby class we are wrapping as the first parameter in the constructor for `RubyClass`.  The parameters which follow are passed directly to the constructor of the corresponding Ruby class.  This Ruby constructor is invoked automatically, instantiating the corresponding wrapped Ruby object in the background.  Notice that we specify the name of the Ruby class using a symbol.  This is the one place in the framework that we break with the "symbols as methods" metaphor.  The consequence is a nice, clean syntax for Ruby class wrapping.  Unfortunately, it also means that wrapping a class within a non-included namespace (e.g. `ActiveRecord::Base`) can be a little clunky.  The only way to do it is to explicitly invoke the `Symbol(String)` constructor.  (this is required because Scala symbols can only contain alpha-numerics and underscores)
 
@@ -145,7 +310,11 @@ Once we have our wrapped class signature, it's easy to define the delegate metho
 
 We don't really need type-safe return values for a mutator.  We would normally just set the return type as `Unit` and ignore the result.  Thus we can once again use the symbol dispatch syntax.  Notice that this time we're not directly treating a symbol as a method.  We're apparently _assigning_ a value to the symbol using the `=` operator (corresponds to the `operator=` assignment operator in C++).  This is possible through a separate implicit type conversion which generates a one-off utility instance:
 
-```scala private[scalaruby] class SpecialMethodAssign[R](sym:Symbol) { def intern_=(param:Any) = new RubyMethod[R](str2sym(sym2string(sym) + "="))(param) } ``` 
+```scala
+private[scalaruby] class SpecialMethodAssign[R](sym:Symbol) {
+  def intern_=(param:Any) = new RubyMethod[R](str2sym(sym2string(sym) + "="))(param)
+}
+```
 
 As you can see, all this method does is generate a new symbol which includes the '=' character and returns the result of dispatching on the corresponding Ruby method.  Note that mutators in Ruby are defined as " _=_ ", thus appending "=" to the method name is the appropriate behavior.
 
@@ -157,7 +326,9 @@ Somehow, the framework must identify that there is a corresponding Scala wrapper
 
 The best solution to all of these problems is to introduce the `associate` method.  The usage is demonstrated at the top of the example where we associate the `Person` Ruby class with the `Person` Scala wrapper class.  More specifically, we associate the Ruby class with a pass-by-name parameter which defines how to instantiate the Scala class.  This is an important distinction as it solves our second problem of instance creation.  The framework has no way of knowing what parameters must be passed to the Scala wrapper constructor, so the instantiation itself must be passed:
 
-```scala associate('Person)(new Person("")) ``` 
+```scala
+associate('Person)(new Person(""))
+```
 
 As I mentioned previously, this is a pass-by-name parameter which means that it will not be immediately evaluated, but rather on-demand somewhere in the body of `associate`.  The `associate` method actually takes this value and wraps it in an anonymous method which invokes the instantiation each time a value of Ruby type `Person` must be wrapped.  Just prior to invoking the constructor, an override is put in place within the `RubyClass` singleton object (not shown in the class hierarchy) to prevent the creation of a corresponding Ruby instance.  This is what allows the new instance of Scala class `Person` to correspond with an existing Ruby value.  Here again we're sacrificing concurrency for a hacky work-around to a complex problem.  Any sort of "proper" implementation would have to solve this problem in a more elegant way.
 

@@ -18,11 +18,21 @@ Over the last few months, I've added several features which satisfy three primar
 
 The first two goals were easily met through the addition of `TableNameConverter` and `FieldNameConverter`.  These two classes are used by every feature within ActiveObjects, from migrations to simple data access, to determine the database table and field names from the class and method names respectively.  The canonical example of this is table name pluralization, which can be accomplished in the following way:
 
-```java EntityManager manager = new EntityManager( "jdbc:mysql://localhost/test", "username", "secret"); manager.setTableNameConverter(new PluralizedNameConverter()); ``` 
+```java
+EntityManager manager = new EntityManager(
+    "jdbc:mysql://localhost/test", "username", "secret");
+manager.setTableNameConverter(new PluralizedNameConverter());
+```
 
 Not too horrible.  The second use-case is assigning a different field name convention than the default camelCase.  For example, some people really like the ActiveRecord (Rails) field naming convention.  (e.g. "first_name" as opposed to "firstName")  This can easily be accomplished by specifying a field name converter:
 
-```java EntityManager manager = new EntityManager( "jdbc:mysql://localhost/test", "username", "secret"); // lower_case convention manager.setFieldNameConverter(new UnderscoreFieldNameConverter(false)); ``` 
+```java
+EntityManager manager = new EntityManager(
+    "jdbc:mysql://localhost/test", "username", "secret");
+
+// lower_case convention
+manager.setFieldNameConverter(new UnderscoreFieldNameConverter(false));
+```
 
 Custom table and field name converters are also possible, allowing for a great deal of flexibility in name conventions.  Additionally, it's always possible to specify field and table names directly in the entities, using the `@Accessor`, `@Mutator` and `@Table` annotations respectively.
 
@@ -36,7 +46,59 @@ The solution is to refactor all of the interesting functionality in `Entity` up 
 
 Since we've refactored interesting functionality up into `RawEntity` and kept `getID()` within `Entity`, no legacy code needs to be changed.  Any entities previously written against ActiveObjects will run without modification or any behavior changes.  We are merely allowed the flexibility of specifying our own primary keys.  So, without further ado, the obligatory example:
 
-```java public interface Person extends Entity { public String getFirstName(); public void setFirstName(String firstName); public String getLastName(); public void setLastName(String lastName); public Company getCompany(); public void setCompany(Company company); public House getHome(); public void setHome(House home); } public interface Company extends RawEntity { @PrimaryKey @NotNull @Generator(UUIDValueGenerator.class) public String getCompanyKey(); public String getName(); public void setName(String name); @OneToMany public Person[] getEmployees(); } public interface House extends RawEntity { @PrimaryKey @NotNull @AutoIncrement public int getHouseID(); // ... @OneToMany public Person[] getOccupants(); } public class UUIDValueGenerator implements ValueGenerator { public String generateValue(EntityManager em) { // generate uuid return uuid; } } // ... Person p = manager.get(Person.class, 1); Company c = manager.get(Company.class, "abff999dd99ddf0a225f"); ``` 
+```java
+public interface Person extends Entity {
+    public String getFirstName();
+    public void setFirstName(String firstName);
+
+    public String getLastName();
+    public void setLastName(String lastName);
+
+    public Company getCompany();
+    public void setCompany(Company company);
+
+    public House getHome();
+    public void setHome(House home);
+}
+
+public interface Company extends RawEntity<String> {
+    
+    @PrimaryKey
+    @NotNull
+    @Generator(UUIDValueGenerator.class)
+    public String getCompanyKey();
+
+    public String getName();
+    public void setName(String name);
+
+    @OneToMany
+    public Person[] getEmployees();
+}
+
+public interface House extends RawEntity<Integer> {
+
+    @PrimaryKey
+    @NotNull
+    @AutoIncrement
+    public int getHouseID();
+
+    // ...
+    
+    @OneToMany
+    public Person[] getOccupants();
+}
+
+public class UUIDValueGenerator implements ValueGenerator<String> {
+    public String generateValue(EntityManager em) {
+        // generate uuid
+        return uuid;
+    }
+}
+
+// ...
+Person p = manager.get(Person.class, 1);
+Company c = manager.get(Company.class, "abff999dd99ddf0a225f");
+```
 
 Maybe a bit longer of an example than you were expecting, but it does cover the material well.  What's happening here is the `Person` entity has a standard, "id" primary key.  This follows the same convention that ActiveObjects has been enforcing since the beginning of time (or at least since I started the project).  `Company` and `House` are the interesting entities here.
 

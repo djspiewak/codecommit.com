@@ -20,7 +20,11 @@ But if Scala and C++ are so similar in historical inception, shouldn't we view t
 
 This clean break with the progenitor language has a number of ramifications.  Most importantly, Scala is able to smooth many of the rough edges in Java without breaking existing libraries.  For example, Scala's generics are far more consistent than Java's, despite still being implemented using erasure.  This snippet, for example, fails to compile:
 
-```scala def doSomething(ls:List) = { ... } ``` 
+```scala
+def doSomething(ls:List) = {
+  ...
+}
+```
 
 All we have done is omit the generic type parameter.  In Java, the equivalent would lead to a compiler warning _at worst_ , because Java has to remain backwards compatible with code written before the introduction of generics.  This "error vs warning" distinction seems a bit trivial at first, but the distinction has massive implications throughout the rest of the type system.  Anyone who has ever tried to write a "generified" library in Java will know what I mean.
 

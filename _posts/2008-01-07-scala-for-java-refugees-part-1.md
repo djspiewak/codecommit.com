@@ -28,11 +28,18 @@ Did I mention [Alex's Scala introduction series](<http://alblue.blogspot.com/200
 
 ### Getting Started
 
-```scala object HelloWorld extends Application { println("Hello, World!") } ``` 
+```scala
+object HelloWorld extends Application {
+  println("Hello, World!")
+}
+```
 
 Nothing like getting things rolling with a little code.  Notice the refreshing lack of mandatory semicolons.  We _can_ use them anyway, but they aren't required unless we need multiple statements on a single line.  This code sample does exactly what it looks like, it defines an application which (when run using the _scala_ interpreter) will print "Hello, World!" to stdout.  If you put this code into a file with a _.scala_ extension, you can then compile it using the _scalac_ compiler.  The result will be a single _.class_ file.  You could technically run the _.class_ using the _java_ interpreter, but you would have to mess with the classpath a bit.  The easiest thing to do is just use the _scala_ command like so:
 
-```bash scalac hello.scala scala HelloWorld ``` 
+```bash
+scalac hello.scala
+scala HelloWorld
+```
 
 Notice the name of the file in question?  Unlike Java, Scala doesn't force you to define all public classes individually in files of the same name.  Scala actually lets you define as many classes as you want per file (think C++ or Ruby).  It's still good practice to follow the Java naming convention though, so being good programmers we'll save our _HelloWorld_ example in a file called "HelloWorld.scala".
 
@@ -51,11 +58,26 @@ There are a few other options available, but these are the biggies (to see a ful
 
 ### More Hello World
 
-```scala object HelloWorld2 { def main(args:Array[String]) = { var greeting = "" for (i <\- 0 until args.length) { greeting += (args(i) + " ") } if (args.length > 0) greeting = greeting.substring(0, greeting.length - 1) println(greeting) } } ``` 
+```scala
+object HelloWorld2 {
+  def main(args:Array[String]) = {
+    var greeting = ""
+    for (i <- 0 until args.length) {
+      greeting += (args(i) + " ")
+    }
+    if (args.length > 0) greeting = greeting.substring(0, greeting.length - 1)
+
+    println(greeting)
+  }
+}
+```
 
 Save this in a new file (we'll call it "HelloWorld2.scala"), compile and run using the following commands:
 
-```bash scalac HelloWorld2.scala scala HelloWorld2 Hello, World! ``` 
+```bash
+scalac HelloWorld2.scala
+scala HelloWorld2 Hello, World!
+```
 
 Once again, this prints "Hello, World!" to stdout.  This time we did things a little differently though.  Now we've got command line arguments coming into our app.  We define a variable of type _String_ , iterate over an array and then call a bit of string manipulation.  Fairly straightforward, but definitely more complex than the first example.  ( **Note:** Scala mavens will no doubt suggest the use of _Array#deepMkString(String)_ (similar to Ruby's _Array::join_ method) instead of iterating over the array.  This is the correct approach, but I wanted to illustrate a bit more of the language than just an obscure API feature).
 
@@ -69,43 +91,67 @@ Scala doesn't really have statics.  The sooner you recognize that, the easier t
 
 Upon deeper inspection of our sample, we gain a bit of insight into both Scala array syntax, as well as an idea of how one can explicitly specify variable types.  Specifically, let's focus on the method declaration line.
 
-```scala def main(args:Array[String]) = { ``` 
+```scala
+def main(args:Array[String]) = {
+```
 
 In this case, _args_ is a method parameter of type _Array[String]._   That is to say, _args_ is a string array.  In Scala, _Array_ is actually a class (a real class, not like Java arrays) that takes a type parameter defining the type of its elements.  The equivalent Java syntax (assuming Java had an _Array_ class) would be something like this:
 
-```java public static void main(Array args) { ``` 
+```java
+public static void main(Array<String> args) {
+```
 
 In Scala, variable type is specified using the _variable:Type_ syntax.  Thus, if I wanted to declare a variable that was explicitly of type _Int,_ it would be done like this:
 
-```scala var myInteger:Int ``` 
+```scala
+var myInteger:Int
+```
 
 If you look at the sample, we actually do declare a variable of type _String_.  However, we don't explicitly specify any type.  This is because we're taking advantage of Scala's type inference mechanism.  These two statements are semanticly equivalent:
 
-```scala var greeting = "" ``` 
+```scala
+var greeting = ""
+```
 
-```scala var greeting:String = "" ``` 
+```scala
+var greeting:String = ""
+```
 
 In the first declaration, it's obvious to us that _greeting_ is a _String,_ thus the compiler is able to infer it for us.  Both _greeting_ s are staticly type checked, the second one is just 7 characters shorter.  :-)
 
 Observant coders will also notice that we haven't declared a return type for our _main_ method.  That's because Scala can infer this for us as well.  If we really did want to say something explicitly, we could declare things like this:
 
-```scala def main(args:Array[String]):Unit = { ``` 
+```scala
+def main(args:Array[String]):Unit = {
+```
 
 Once again, the type antecedes the element, delimited by a colon.  As an aside, _Unit_ is the Scala type for I-really-don't-care-what-I-return situations.  Think of it like Java's _Object_ and _void_ types rolled into one.
 
 ### Iterating Over an Array
 
-```scala var greeting = "" for (i <\- 0 until args.length) { greeting += (args(i) + " ") } ``` 
+```scala
+var greeting = ""
+for (i <- 0 until args.length) {
+  greeting += (args(i) + " ")
+}
+```
 
 By the way, it's worth noting at this juncture that the convention for Scala indentation is in fact two spaces, rather than the tabs or the four space convention that's so common in Java.  Indentation isn't significant, so you can really do things however you want, but the other four billion, nine hundred, ninety-nine million, nine hundred, ninety-nine thousand, nine hundred and ninety-nine people in the world use the two space convention, so it's probably worth getting used to it.  The logic behind the convention is that deeply nested structure isn't a bad sign in Scala like it is in Java, thus the indentation can be more subtle.
 
 This sample of code is a bit less intuitively obvious than the ones we've previously examined.  We start out by declaring a variable, _greeting_ of inferred type _String._   No hardship there.  The second line is using the rarely-seen Scala for loop, a little more type inference, method invocation on a "primitive" literal and a _Range_ instance.  Developers with Ruby experience will probably recognize this equivalent syntax:
 
-```ruby for i in 0..(args.size - 1) greeting += args[i] + " " end ``` 
+```ruby
+for i in 0..(args.size - 1)
+  greeting += args[i] + " "
+end
+```
 
 The crux of the Scala for loop is the _Range_ instance created in the _RichInt#until_ method.  We can break this syntax into separate statements like so:
 
-```scala val range = 0.until(args.length) for (i <\- range) { ``` 
+```scala
+val range = 0.until(args.length)
+for (i <- range) {
+```
 
 Oh, that's not a typo there declaring range using _val_ instead of _var._   Using _val_ , we're declaring a variable _range_ as a constant (in the Java sense, not like C/C++ _const_ ).  Think of it like a shorter form of Java's _final_ modifier.
 
@@ -115,7 +161,9 @@ Once we have our _Range_ instance (regardless of how it is created), we pass the
 
 In short, the _for_ loop given is almost, but not quite equivalent to the following bit of Java:
 
-```java for (int i = 0; i < args.length; i++) { ``` 
+```java
+for (int i = 0; i < args.length; i++) {
+```
 
 Obviously the Java syntax is explicitly defining the range tests, rather than using some sort of _Range_ object, but the point remains.  Fortunately, you almost never have to use this loop syntax in Scala, as we'll see in a bit.
 
@@ -123,43 +171,106 @@ The body of the loop is the one final bit of interesting code in our sample.  O
 
 To summarize, the upper sample in Scala is logically equivalent to the lower sample in Java:
 
-```scala var greeting = "" for (i <\- 0 until args.length) { greeting += (args(i) + " ") } ``` 
+```scala
+var greeting = ""
+for (i <- 0 until args.length) {
+  greeting += (args(i) + " ")
+}
+```
 
-```java String greeting = ""; for (int i = 0; i < args.length; i++) { greeting += args[i] + " "; } ``` 
+```java
+String greeting = "";
+for (int i = 0; i < args.length; i++) {
+    greeting += args[i] + " ";
+}
+```
 
 ### A Better Way to Iterate
 
 In Java 5, we saw the introduction of the so-called for/each iterator syntax.  Thus, in Java we can do something like this:
 
-```java for (String arg : args) { greeting += arg + " "; } ``` 
+```java
+for (String arg : args) {
+    greeting += arg + " ";
+}
+```
 
 Much more concise.  Scala has a similar syntax defined as a high-order function - a function which takes another function as a parameter.  I'll touch on these more later, but for the moment you can take it as more magic fairie dust:
 
-```scala args.foreach { arg => greeting += (arg + " ") } ``` 
+```scala
+args.foreach { arg =>
+  greeting += (arg + " ")
+}
+```
 
 Here we see that _foreach_ is a method of class _Array_ that takes a closure (anonymous function) as a parameter.  The _foreach_ method then calls that closure once for each element, passing the element as a parameter to the closure ( _arg_ ).  The _arg_ parameter has an inferred type of _String_ because we're iterating over an array of strings.
 
 Now as we saw earlier, Scala methods can be called in different ways.  In this case we're calling _foreach_ omitting the parentheses for clarity.  We also could have written the sample like this:
 
-```scala args.foreach(arg => { greeting += (arg + " ") }) ``` 
+```scala
+args.foreach(arg => {
+  greeting += (arg + " ")
+})
+```
 
 Scala actually defines an even _more_ concise way to define single-line closures.  We can omit the curly-braces altogether by moving the instruction into the method invocation:
 
-```scala args.foreach(arg => greeting += (arg + " ")) ``` 
+```scala
+args.foreach(arg => greeting += (arg + " "))
+```
 
 Not bad!  So our fully rewritten sample looks like this:
 
-```scala object HelloWorld2 { def main(args:Array[String]) = { var greeting = "" args.foreach(arg => greeting += (arg + " ")) if (args.length > 0) greeting = greeting.substring(0, greeting.length - 1) println(greeting) } } ``` 
+```scala
+object HelloWorld2 {
+  def main(args:Array[String]) = {
+    var greeting = ""
+    args.foreach(arg => greeting += (arg + " "))
+    if (args.length > 0) greeting = greeting.substring(0, greeting.length - 1)
+
+    println(greeting)
+  }
+}
+```
 
 The syntax looks great, but what is it actually doing?  I don't know about you, but I hate having to use APIs that I don't know how to replicate myself.  With a bit of work, we can recreate the gist of the Scala _foreach_ method in pure Java.  Let's assume for a moment that Java had an _Array_ class.  In that _Array_ class, let's pretend there was a _foreach_ method which took a single instance as a parameter.  Defined in code, it might look like this:
 
-```java public interface Callback { public void operate(T element); } public class Array { // ... public void foreach(Callback callback) { for (T e : contents) { // our data structure is called "contents" callback.operate(e); } } } ``` 
+```java
+public interface Callback<T> {
+    public void operate(T element);
+}
+
+public class Array<T> {
+    // ...
+    public void foreach(Callback<T> callback) {
+        for (T e : contents) {   // our data structure is called "contents"
+            callback.operate(e);
+        }
+    }
+}
+```
 
 I could have defined _foreach_ recursively (as it is defined in Scala), but remember I'm trying to keep these explanations clear of the tangled morass that is FP.  :-)
 
 Sticking with our goal to see an analog to the Scala _foreach_ , here's how we would use the above API in Java:
 
-```java public class HelloWorld2 { public static void main(Array args) { final StringBuilder greeting = new StringBuilder(); args.foreach(new Callback() { public void operate(String element) { greeting.append(element).append(' '); } }); if (args.length() > 0) { greeting.setLength(greeting.length() - 1); } System.out.println(greeting.toString()); } } ``` 
+```java
+public class HelloWorld2 {
+    public static void main(Array<String> args) {
+        final StringBuilder greeting = new StringBuilder();
+        args.foreach(new Callback<String>() {
+            public void operate(String element) {
+                greeting.append(element).append(' ');
+            }
+        });
+        if (args.length() > 0) {
+            greeting.setLength(greeting.length() - 1);
+        }
+
+        System.out.println(greeting.toString());
+    }
+}
+```
 
 Starting to see why Scala is legitimately appealing?  If you're like me, you just want Scala to be a more concise Java.  In this case, that's exactly what we've got.  No strange functional cruft, no immutable state.  Just solid, hard-working code.
 

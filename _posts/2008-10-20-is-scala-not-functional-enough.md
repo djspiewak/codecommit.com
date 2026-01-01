@@ -24,21 +24,33 @@ The core of the argument made by Rich (and others) against Scala as a functional
 
 If you're coming from Java-land, the final point may have caught you a bit by surprise. After all, Scala is _vastly_ more concise than Java, so how could anyone possibly claim that it is "too verbose"? Well, to answer that question, you have to compare Scala with the other side of the language jungle: the functional languages. Here's an explicitly-recursive function which sums a list of integers:
 
-```scala def sum(ls: List[Int]): Int = ls match { case hd :: tail => hd + sum(tail) case Nil => 0 } ``` 
+```scala
+def sum(ls: List[Int]): Int = ls match {
+  case hd :: tail => hd + sum(tail)
+  case Nil => 0
+}
+```
 
 That's not too bad. The use of pattern matching eliminates an entire class of runtime errors (selecting a non-existent element) and makes the code a lot cleaner than the equivalent Java. However, compare this with the same function ported directly to SML (a functional language:
 
-```ml fun sum nil = 0 | sum (hd :: tail) = hd + sum tail ``` 
+```ml
+fun sum nil = 0
+  | sum (hd :: tail) = hd + sum tail
+```
 
 One thing you'll notice here is the complete lack of any type annotations. Like most static functional languages, ML (and derivatives) has a form of type inference called "[Hindley - Milner](<http://en.wikipedia.org/wiki/Type_inference#Hindley.E2.80.93Milner_type_inference_algorithm>)" (sometimes called "global type inference"). Rather than just looking at a single expression to infer a type (like Scala), Hindley - Milner looks at the _entire_ function and derives the most general (least restrictive) type which satisfies all expressions. This means that everything can be statically type-checked with almost no need to declare types explicitly.
 
 "Now, wait!" (you say), "You would never write a function just to sum a list; you should be using a fold." That's true. So let's see how well these two languages do when the problem is solved in a more realistic fashion. Once again, Scala first:
 
-```scala def sum(ls: List[Int]) = ls.foldLeft(0) { _ + _ } ``` 
+```scala
+def sum(ls: List[Int]) = ls.foldLeft(0) { _ + _ }
+```
 
 Let's see ML top that!
 
-```ml fun sum ls = foldl (op+) 0 ls ``` 
+```ml
+fun sum ls = foldl (op+) 0 ls
+```
 
 Then again, maybe we'll just quit while we're behind...
 
@@ -52,13 +64,21 @@ Simply put, Scala's design forbids any type inference (that I know of) more soph
 
 One big ticket item in the litany of complaints against Scala is the admission of uncontrolled side effects. It's not hard to find an example which demonstrates this property:
 
-```scala val name = readLine println("Hello, " + name) ``` 
+```scala
+val name = readLine
+println("Hello, " + name)
+```
 
 This example alone shows how fundamental side-effects are within the Scala language. All we have done here is made two function calls, one of them passing a `String` and receiving _nothing_ as a result. From a mathematical standpoint, this code snippet is virtually a no-op. However, we all know that the `println` function has an additional side effect which involves sending text to standard out. Coming from Java, this makes perfect sense and it's probably hard to see why this would be considered a problem. However, coming from Haskell, what we just wrote was a complete abomination.
 
 You see, Haskell says that no function should _ever_ have side effects unless they are explicitly declared using a special type constructor. In fact, this is one of the areas where monads have had a huge impact on Haskell's design. Consider the following Haskell equivalent:
 
-```haskell main :: IO () main = do name <\- getLine putStrLn ("Hello, " ++ name) ``` 
+```haskell
+main :: IO ()
+main = do
+         name <- getLine
+         putStrLn ("Hello, " ++ name)
+```
 
 Even if you don't know Haskell, the above should be pretty readable. The first line is the type declaration for the `main` "function" (it's actually a value, but why quibble). Haskell does have Hindley - Milner type inference, but I wanted to be extra-explicit. You'll notice that `main` is not of type `void` or `Unit` or anything similar, it is actually of type `IO` _parameterized_ with Haskell's form of `Unit`: `()`. This is an extremely important point: `IO` is a monad which represents an action with side-effects returning a value which matches its type parameter (in this case, `()`). The little dance we perform using `do`-notation is just a bit of syntax sugar allowing us to compose two other `IO` values together in a specific order. The `getLine` "function" is of type `IO String`, meaning that it somehow reads a `String` value by using side effects (in this case, reading from standard in). Similarly, `putStrLn` is a function of type `String -> IO ()`. This means that it takes a `String` as a parameter and uses it to perform some side effects, from which it obtains no result value. The do-notation takes these two monadic values and _composes_ them together, forming one big value of type `IO ()`.
 

@@ -22,7 +22,22 @@ This is quite possibly the most commonly used pool provider (by default backed b
 
 [commons-dbcp](<http://commons.apache.org/dbcp/>) is probably the easiest pool provider I've seen in terms of API and "just work"-ness.  It has two mechanisms for setting up connections: alternative JDBC URI and a JNDI _DataSource_ implementation.  It's interesting to note here that the JDBC javadocs state that _DataSource_ is the preferred way to retrieve connections, while the commons-pool javadoc asserts that the alternative URI method passed directly to _DriverManager_ is preferable.  In practice, I find myself using the _DataSource_ method for connection pools, mainly because it reminds me that I'm not dealing with a normal connection creation, but something which is potentially pooled:
 
-```java BasicDataSource ds = new BasicDataSource(); ds.setDriverClassName(jdbcDriver); ds.setUsername(getUsername()); ds.setPassword(getPassword()); ds.setUrl(getURI()); ds.setMaxActive(20); // get connection here Connection conn = ds.getConnection(); // dispose of pool ds.close(); ``` 
+```java
+BasicDataSource ds = new BasicDataSource();
+ds.setDriverClassName(jdbcDriver);
+
+ds.setUsername(getUsername());
+ds.setPassword(getPassword());
+ds.setUrl(getURI());
+
+ds.setMaxActive(20);
+
+// get connection here
+Connection conn = ds.getConnection();
+
+// dispose of pool
+ds.close();
+```
 
 It's important to note here that the pool is explicitly disposed. This is _always_ a good idea, even for pools which don't state the requirement in their documentation.  An undisposed pool can hold database connection open, tying up resources and dragging your database performance through the dirt.  Always, always, always dispose of your connection pools when you're done with them.
 
@@ -46,7 +61,26 @@ Continuing my recent obsession with HTML tables and their use in product reviews
 
 Unfortunately, like so many projects on SourceForge, C3P0 does not have a separate website.  The maintainers opted to stick with the SourceForge project interface as the sole source of "official" information.  Add to that the fact that they decided _not_ to add anything to the "Documentation" section of the page and you arrive at one very frustrating first impression for a new user.  Fortunately there's a lot of material on using C3P0 (both with and without Hibernate) available around the internet.  Always remember: Google is your friend.
 
-```java ComboPooledDataSource cpds = new ComboPooledDataSource(); cpds.setDriverClass(jdbcDriver); cpds.setJdbcUrl(getURI()); cpds.setUser(getUsername()); cpds.setPassword(getPassword()); cpds.setMaxPoolSize(20); cpds.setMaxStatements(180); // get connection here Connection conn = cpds.getConnection(); // dispose of pool try { DataSources.destroy(cpds); } catch (SQLException e) { } ``` 
+```java
+ComboPooledDataSource cpds = new ComboPooledDataSource();
+cpds.setDriverClass(jdbcDriver);
+
+cpds.setJdbcUrl(getURI());
+cpds.setUser(getUsername());
+cpds.setPassword(getPassword());
+
+cpds.setMaxPoolSize(20);
+cpds.setMaxStatements(180);
+
+// get connection here
+Connection conn = cpds.getConnection();
+
+// dispose of pool
+try {
+    DataSources.destroy(cpds);
+} catch (SQLException e) {
+}
+```
 
 The API is somewhat similar to that of commons-dbcp.  Both use the _DataSource_ API as a foundation (which is the "right" approach according to the JDBC docs), and both allow roughly the same configuration options on a pool.  At face value, the APIs seem similar to the point that comparison between the two on such a level would be pointless.
 
@@ -68,7 +102,28 @@ To their credit, the Proxool maintainers have written quite a bit of documentati
 
 So to make things easier for others like myself looking to try the framework, here's the basic setup code for a Proxool pool:
 
-```java Class.forName(jdbcDriver); Properties props = new Properties(); props.setProperty("proxool.maximum-connection-count", "20"); props.setProperty("user", getUsername()); props.setProperty("password", getPassword()); String driverUrl = getURI(); String url = "proxool.mypool:" + jdbcDriver + ":" + getURI(); ProxoolFacade.registerConnectionPool(url, props); // get connection here Connection conn = DriverManager.getConnection("proxool.mypool"); // dispose of pool try { ProxoolFacade.removeConnectionPool("mypool"); } catch (ProxoolException e) { } ``` 
+```java
+Class.forName(jdbcDriver);
+
+Properties props = new Properties();
+props.setProperty("proxool.maximum-connection-count", "20");
+props.setProperty("user", getUsername());
+props.setProperty("password", getPassword());
+
+String driverUrl = getURI();
+String url = "proxool.mypool:" + jdbcDriver + ":" + getURI();
+
+ProxoolFacade.registerConnectionPool(url, props);
+
+// get connection here
+Connection conn = DriverManager.getConnection("proxool.mypool");
+
+// dispose of pool
+try {
+    ProxoolFacade.removeConnectionPool("mypool");
+} catch (ProxoolException e) {
+}
+```
 
 Hardly intuitive I'd say.  Nevertheless, the above code seems to get the job done.
 

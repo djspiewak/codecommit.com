@@ -12,7 +12,13 @@ Almost exactly a year ago, Google made one of the most remarkable press releases
 
 For those of you who don't know, Google Wave is a collaboration tool based on real-time, simultaneous editing of documents via a mechanism known as "operational transformation". Entities which appear as messages in the Wave client are actually "waves". Within each "wave" is a set of "wavelets", each of which contains a set of documents. Individual documents can represent things like messages, conversation structure (which reply goes where, etc), spell check metadata and so on. Documents are composed of well-formed XML with an implicit root node. Additionally, they carry special metadata known as "annotations" which are (potentially-overlapping) key/value ranges which span across specific regions of the document. In the Wave message schema, annotations are used to represent things like bold/italic/underline/strikethrough formatting, links, caret position, the conversation title and a host of other things. An example document following the Wave message schema might look something like this:
 
-```  Test message Lorem ipsum dolor sit amet.  ``` 
+```
+<body>
+  <line/><span style="border-bottom-style: solid; border-bottom-width: 1px; border-bottom-color: green;">Test message</span>
+  <line/>
+  <span style="border-bottom-style: solid; border-bottom-width: 1px; border-bottom-color: red;"><line/>Lorem <span style="padding-bottom: 1px; border-bottom-style: solid; border-bottom-width: 1px; border-bottom-color: blue;">ipsum</span></span><span style="padding-bottom: 1px; border-bottom-style: solid; border-bottom-width: 1px; border-bottom-color: blue;"> dolor</span> sit amet.
+</body>
+```
 
 (assuming the following annotations):
 
@@ -294,7 +300,9 @@ None of the information presented in this article on "compound OT" is available 
 
   * To obtain Google's OT library, you must take a Mercurial clone of the [wave-protocol](<http://code.google.com/p/wave-protocol/>) repository:
 
-``` $ hg clone https://wave-protocol.googlecode.com/hg/ wave-protocol ``` 
+```
+$ hg clone https://wave-protocol.googlecode.com/hg/ wave-protocol
+```
 
 Once you have the source, you should be able to build everything you need by simply running the Ant build script. The main OT classes are `org.waveprotocol.wave.model.document.operation.algorithm.Composer` and `org.waveprotocol.wave.model.document.operation.algorithm.Transformer`. Their use is exactly as described in this article. Please note that `Transformer` does not handle compound OT, you will have to implement that yourself by using `Composer` and `Transformer`. Operations are represented by the `org.waveprotocol.wave.model.document.operation.DocOp` interface, and can be converted into the more useful `org.waveprotocol.wave.model.document.operation.BufferedDocOp` implementation by using the `org.waveprotocol.wave.model.document.operation.impl.DocOpUtil.buffer` method.
 

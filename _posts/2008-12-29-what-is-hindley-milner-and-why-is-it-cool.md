@@ -16,7 +16,12 @@ However, despite widespread application of the idea, I have yet to see a decent 
 
 Functionally speaking, Hindley-Milner (or "Damas-Milner") is an algorithm for inferring value types based on use.  It literally formalizes the intuition that a type can be deduced by the functionality it supports.  Consider the following bit of _psuedo_ -Scala (not a flying toy):
 
-```scala def foo(s: String) = s.length // note: no explicit types def bar(x, y) = foo(x) + y ``` 
+```scala
+def foo(s: String) = s.length
+
+// note: no explicit types
+def bar(x, y) = foo(x) + y
+```
 
 Just looking at the definition of `bar`, we can easily see that its type _must_ be `(String, Int)=>Int`.  As humans, this is an easy thing for us to intuit.  We simply look at the body of the function and see the two uses of the `x` and `y` parameters.  `x` is being passed to `foo`, which expects a `String`.  Therefore, `x` must be of type `String` for this code to compile.  Furthermore, `foo` will return a value of type `Int`.  The `+` method on class `Int` expects an `Int` parameter; thus, `y` must be of type `Int`.  Finally, we know that `+` returns a new value of type `Int`, so there we have the return type of `bar`.
 
@@ -26,7 +31,9 @@ This process is almost exactly what Hindley-Milner does: it looks through the bo
 
 The easiest way to see how this process works is to walk it through ourselves.  The first phase is to derive the constraint set.  We start by assigning each value (`x` and `y`) a _fresh_ type (meaning "non-existent").  If we were to annotate `bar` with these type variables, it would look something like this:
 
-```scala def bar(x: X, y: Y) = foo(x) + y ``` 
+```scala
+def bar(x: X, y: Y) = foo(x) + y
+```
 
 The type names are not significant, the important restriction is that they do not collide with any "real" type.  Their purpose is to allow the algorithm to unambiguously reference the yet-unknown type of each value.  Without this, the constraint set cannot be constructed.
 
@@ -57,11 +64,15 @@ In our case, the unification of our set of type constraints is fairly trivial. 
 
 To really see the power of unification, we need to look at a slightly more complex example.  Consider the following function:
 
-```scala def baz(a, b) = a(b) :: b ``` 
+```scala
+def baz(a, b) = a(b) :: b
+```
 
 This snippet defines a function, `baz`, which takes a function and some other parameter, invoking this function passing the second parameter and then "cons-ing" the result onto the second parameter itself.  We can easily derive a constraint set for this function.  As before, we start by coming up with type variables for each value.  Note that in this case, we not only annotate the parameters but also the return type.  I sort of skipped over this part in the earlier example since it only sufficed to make things more verbose.  Technically, this type is always inferred in this way.
 
-```scala def baz(a: X, b: Y): Z = a(b) :: b ``` 
+```scala
+def baz(a: X, b: Y): Z = a(b) :: b
+```
 
 The first constraint we should derive is that `a` must be a function which takes a value of type _Y_ and returns some fresh type _Y'_ (pronounced like " _why prime_ ").  Further, we know that `::` is a function on class `List[A]` which takes a new element `A` and produces a new `List[A]`.  Thus, we know that _Y_ and _Z_ must both be `List[Y']`.  Formalized in a constraint set, the result is as follows:
 
@@ -77,13 +88,17 @@ _Z_   ![\\mapsto](http://alt1.artofproblemsolving.com/Forum/latexrender/picture
 
 This is the same constraint set as before, except that we have substituted the known mapping for _Y_ into the mapping for _X_.  This substitution allows us to eliminate _X_ , _Y_ and _Z_ from our inferred types, resulting in the following typing for the `baz` function:
 
-```scala def baz(a: List[Y']=>Y', b: List[Y']): List[Y'] = a(b) :: b ``` 
+```scala
+def baz(a: List[Y']=>Y', b: List[Y']): List[Y'] = a(b) :: b
+```
 
 Of course, this still isn't valid.  Even assuming that `Y'` were valid Scala syntax, the type checker would complain that no such type can be found.  This situation actually arises surprisingly often when working with Hindley-Milner type reconstruction.  Somehow, at the end of all the constraint inference and unification, we have a type variable "left over" for which there are no known constraints.
 
 The solution is to treat this unconstrained variable as a type parameter.  After all, if the parameter has no constraints, then we can just as easily substitute any type, including a generic.  Thus, the final revision of the `baz` function adds an unconstrained type parameter "`A`" and substitutes it for all instances of _Y'_ in the inferred types:
 
-```scala def baz[A](a: List[A]=>A, b: List[A]): List[A] = a(b) :: b ``` 
+```scala
+def baz[A](a: List[A]=>A, b: List[A]): List[A] = a(b) :: b
+```
 
 ### Conclusion
 

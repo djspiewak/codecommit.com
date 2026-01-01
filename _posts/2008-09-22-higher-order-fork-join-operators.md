@@ -18,7 +18,9 @@ By the way, I really will get to fork/join a little later, but I wanted to be su
 
 One of the odd things about computer science is a depressing lack of imaginative examples. Not being one to break with tradition, I've decided to kick off our little quest with a little time spent in the well-trodden foothills of factorial. This should help us to establish some terminology (which I'm arbitrarily assigning for the purposes of this article) as well as the basic concepts involved. A simple recursive implementation (in Scala of course) would look like this:
 
-```scala def fac(n: Int): Int = if (n < 1) 1 else fac(n - 1) * n ``` 
+```scala
+def fac(n: Int): Int = if (n < 1) 1 else fac(n - 1) * n
+```
 
 For each number, this function performs a number of discrete operations. First, it checks to see if the index is less than 1. If so, then the function returns immediately, otherwise it proceeds on a separate course. This is a _branching_ operation. Since the "`true` branch" is uninteresting, we will focus on the case when the index is in fact greater than 1. In this case, we have three critical operations which must be performed. They are as follows (temporary names are fictitious):
 
@@ -44,7 +46,9 @@ Now that we have some simple analysis on factorial under our belt, let's try som
 
 However, the "good" implementations used to calculate the _n_ th number of the Fibonacci series just aren't as concise or easily recognized. Also, they're fairly efficient in their own rights and thus see far less benefit from parallelization at the end of the day. So rather than taking the high road, we're going to just bull straight ahead and use the first algorithm which comes to mind:
 
-```scala def fib(n: Int): Int = if (n < 2) n else fib(n - 1) + fib(n - 2) ``` 
+```scala
+def fib(n: Int): Int = if (n < 2) n else fib(n - 1) + fib(n - 2)
+```
 
 Like factorial, this function makes an excellent poster child for the syntactic wonders of functional programming. Despite its big-O properties, one cannot help but stop and appreciate the concise beauty of this single line of code.
 
@@ -66,7 +70,34 @@ Because it does not matter in which order these computations occur, we are able 
 
 Being a good Java developer (despite the fact that we're using Scala), the very first thing which should come to mind when thinking of concurrency is the concept of a "thread". I'm not going to go into any detail as to what threads are or how they work since they really are concurrency 101. Suffice it to say though that threads are the absolute lowest-level mechanism we could possibly use (at least on this platform). Here we are, Fibonacci a-la `Thread`:
 
-```scala def fib(n: Int): Int = { if (n < 2) n else { var t1 = 0 var t2 = 0 val thread1 = new Thread { override def run() { t1 = fib(n - 1) } } val thread2 = new Thread { override def run() { t2 = fib(n - 2) } } thread1.start() thread2.start() thread1.join() thread2.join() t1 + t2 } } ``` 
+```scala
+def fib(n: Int): Int = {
+  if (n < 2) n else {
+    var t1 = 0
+    var t2 = 0
+    
+    val thread1 = new Thread {
+      override def run() {
+        t1 = fib(n - 1)
+      }
+    }
+    
+    val thread2 = new Thread {
+      override def run() {
+        t2 = fib(n - 2)
+      }
+    }
+    
+    thread1.start()
+    thread2.start()
+    
+    thread1.join()
+    thread2.join()
+    
+    t1 + t2
+  }
+}
+```
 
 I can't even begin to count all of the things that are wrong with this code. For starters, it's ugly. Gone is that attractive one-liner that compelled us to pause and marvel. In its place we have a 25 line monster with no apparent virtues. The intent of the algorithm has been completely obscured, lost in a maze of ceremony. But the worst flaw of all is the fact that this design will actually require ( _n - 2)!_ threads. So to calculate the 10th Fibonacci number, we will need to create, start and destroy 40,320 `Thread` instances! That is a truly frightening value.
 
@@ -78,7 +109,27 @@ For the moment, it looks like we have run into an insurmountable obstacle. Rathe
 
 Clearly threads are not the answer. A better approach might be to deal with computational values using indirection. If we could somehow kick off a task asynchronously and then keep a "pointer" to the final result of that task (which has not yet completed), we could later come back to that result and retrieve it, blocking only if necessary. It just so happens that the Java 5 Concurrency API introduced a series of classes which fulfill this wish: (what a coincidence!)
 
-```scala def fib(n: Int): Future[Int] = { if (n < 2) future(n) else { val t1 = future { fib(n - 1).get() } val t2 = future { fib(n - 2).get() } future { t1.get() + t2.get() } } } def future[A](f: =>A) = exec.submit(new Callable[A] { def call = f }) ``` 
+```scala
+def fib(n: Int): Future[Int] = {
+  if (n < 2) future(n) else {
+    val t1 = future {
+      fib(n - 1).get()
+    }
+    
+    val t2 = future {
+      fib(n - 2).get()
+    }
+    
+    future {
+      t1.get() + t2.get()
+    }
+  }
+}
+
+def future[A](f: =>A) = exec.submit(new Callable[A] {
+  def call = f
+})
+```
 
 I'm assuming that a variable called `exec` is defined within the enclosing scope and is of type `ExecutorService`. The helper method is just syntax, the real essence of the example is what we're doing with `Future`. You'll notice that this is much shorter than our threaded version. It still bears a passing resemblance to that horrific creature of yesteryear, but yet remains far enough removed as to be legible. We still have our issue of thread starvation to content with, but at least the syntax is getting better.
 
@@ -86,17 +137,34 @@ Along those lines, we should begin to notice a pattern emerging from the chaos: 
 
 Now that we have identified a common pattern, we can work to make it more syntactically palatable. If indeed fork/join is all about merging asynchronous computations based on a given function, then we can invent a bit of syntax sugar which should make the Fibonacci function more concise and more readable. To differentiate ourselves from `Future`, we will call our result "`Promise`" (catchy, ain't it?).
 
-```scala def fib(n: Int): Promise[Int] = { if (n < 2) promise(n) else { { (_:Int) + (_:Int) } =<< fib(n - 1) =<< fib(n - 2) } } ``` 
+```scala
+def fib(n: Int): Promise[Int] = {
+  if (n < 2) promise(n) else {
+    { (_:Int) + (_:Int) } =<< fib(n - 1) =<< fib(n - 2)
+  }
+}
+```
 
 At first glance, it seems that all we have done is reduce a formerly-comprehensible series of verbose constructs to a very concise (but unreadable) equivalent. We can still make out our recursive calls as well as the construction of the base case, but our comprehension stops there. Perhaps this would be a bit more understandable:
 
-```scala val add = { (a: Int, b: Int) => a + b } def fib(n: Int): Promise[Int] = { if (n < 2) promise(n) else { add =<< fib(n - 1) =<< fib(n - 2) } } ``` 
+```scala
+val add = { (a: Int, b: Int) => a + b }
+
+def fib(n: Int): Promise[Int] = {
+  if (n < 2) promise(n) else {
+    add =<< fib(n - 1) =<< fib(n - 2)
+  }
+}
+```
 
 The only reason to use an anonymous method assigned to a value (`add`) rather than a first-class method is the Scala compiler treats the two differently in subtle ways. Technically, I _could_ use a method and arrive at the same semantic outcome, but we would need a little more syntax to make it happen (specifically, an underscore).
 
 This should be starting to make some more sense. What we have here is a _literal_ expression of fork/join: given a function which can _join_ two integers, _fork_ a concurrent "process" (not in the literal sense) for each argument and reduce. The final result of the expression is a new instance of `Promise`. As with `Future`, this operation is non-blocking and very fast. Since the arguments themselves are passed in as instances of `Promise`, we literally don't need to wait for anything. We have now successfully transformed our original `fib` function into a non-blocking version. The only thing left is a little bit of syntax to "unwrap" the final result:
 
-```scala val num = fib(20) num() // 6765 ``` 
+```scala
+val num = fib(20)
+num()                  // 6765
+```
 
 Incidentally, the `=<<` operator was not chosen arbitrarily, its resemblance to the "bind" operator in Haskell is quite intentional. That is not to say that the operation itself is monadic in any sense of the word, but it does bear a _conceptual_ relation to the idea of "binding multiple operations together". The operator is inverted because the bind operation is effectively happening in reverse. Rather than starting with a monad value and then successively binding with other monads and finally mapping on the tail value (as Scala does it), we are starting with the map function and then working our way "backwards" from the tail to the head (as it were). None of the monadic laws apply, but this particular concurrency abstraction should tickle the same region of your brain.
 

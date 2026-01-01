@@ -33,7 +33,15 @@ If this sounds complicated, then you're probably paying attention.  Classloader
 
 Ruby lends itself extremely well to the development of so-called DSLs (Domain Specific Languages).  While we don't need a full-blown DSL here, it would be really nice if we could have an intuitive syntax which could handle all of the complexity for us.  With that in mind, let's imagine exactly what syntax we really want for our wrapper API:
 
-```ruby #!/usr/bin/env jruby require 'java' require 'java_classes' Utilities = get_class 'com.myproject.app.Utilities' Utilities.createManager.optimize ``` 
+```ruby
+#!/usr/bin/env jruby
+
+require 'java'
+require 'java_classes'
+
+Utilities = get_class 'com.myproject.app.Utilities'
+Utilities.createManager.optimize
+```
 
 In my project, the _com.myproject.app.Utilties_ class contains a static method _createManager()_ which returns an instance of _IndexingEntityManager._   This ActiveObjects class in turn contains an _optimize()_ instance method which calls the appropriate Lucene functions to optimize the index.  As you can see, our goal is to use the Utilities class within our script exactly as if it were a standard Ruby class (with the exception of the "dot" syntax as opposed to the double semi-colon for the class method).  Thankfully, this is an achievable goal.
 
@@ -47,22 +55,80 @@ So of course the first thing we need to take care of is the initialization of th
 
 The real interest of this mini API is in the _JClassWrapper_ implementation.  It will be an instance of this Ruby class which is returned from the _get_class_ method.  For the sake of simplicity, we'll make the _method_missing_ method within JClassWrapper to all the work.  Thus, the only things for which the _get_class_ method is responsible are loading the class in question via CLASSLOADER and creating an instance of JClassWrapper to return.  The implementation is shown below:
 
-```ruby def get_class(name) JClassWrapper.new java.lang.Class.forName(name, true, CLASSLOADER) end ``` 
+```ruby
+def get_class(name)
+    JClassWrapper.new java.lang.Class.forName(name, true, CLASSLOADER)
+end
+```
 
 The really interesting code is in _method_missing.   _This is where we will handle both static methods and the special _new_ method, which will be passed on to the wrapped Class's constructor.  This is also where we need to worry about auto-converting the method parameters into values which will make sense to the wrapped Java method.  For the sake of simplicity, we're not going to worry about wrapping anything like complex classes.  Instead, we'll just assume that the parameters passed will either be already Java objects, or simple primitives like _String_ or _Fixnum_.
 
 The auto-conversion logic should look something like this (we can add to it as necessary):
 
-```ruby def method_missing(sym, *args) jarg_types = java.lang.Class[args.size].new jargs = java.lang.Object[args.size].new for i in 0..(args.length - 1) if args[i].kind_of? String args[i] = java.lang.String.new args[i] elsif args[i].kind_of? Fixnum args[i] = java.lang.Integer.new args[i] elsif args[i].kind_of? JClassWrapper args[i] = args[i].java_class end jarg_types[i] = args[i].java_class jargs[i] = args[i] end # ... end ``` 
+```ruby
+def method_missing(sym, *args)
+    jarg_types = java.lang.Class[args.size].new
+    jargs = java.lang.Object[args.size].new
+    
+    for i in 0..(args.length - 1)
+        if args[i].kind_of? String
+            args[i] = java.lang.String.new args[i]
+        elsif args[i].kind_of? Fixnum
+            args[i] = java.lang.Integer.new args[i]
+        elsif args[i].kind_of? JClassWrapper
+            args[i] = args[i].java_class
+        end
+    
+        jarg_types[i] = args[i].java_class
+        jargs[i] = args[i]
+    end
+    # ...
+end
+```
 
 As you can see, all this does is create and populate a types and a values array.  There are some basic, hard-coded conversions, and that's about it.  This gives us all we need to pass values to the reflectively discovered static methods or constructor.  In fact, the only really interesting logic left to us is the actual reflective invocations:
 
-```ruby def method_missing(sym, *args) # ... if sym == :new begin constructor = @clazz.getConstructor jarg_types rescue return super end return constructor.newInstance(jargs) elsif sym == :java_class return @clazz end begin method = @clazz.getMethod(sym.to_s, jarg_types) rescue return super end return method.invoke(nil, jargs) if defined? method super end ``` 
+```ruby
+def method_missing(sym, *args)
+    # ...
+    if sym == :new
+        begin
+            constructor = @clazz.getConstructor jarg_types
+        rescue
+            return super
+        end
+        
+        return constructor.newInstance(jargs)
+    elsif sym == :java_class
+        return @clazz
+    end
+
+    begin
+        method = @clazz.getMethod(sym.to_s, jarg_types)
+    rescue
+        return super
+    end
+
+    return method.invoke(nil, jargs) if defined? method
+		
+    super
+end
+```
 
 Here we have some special logic for the _new_ and _java_class_ methods, since we don't want to pass these directly to the wrapped class, but the rest of the logic is surprisingly simple.  Really all we need to do is find the corresponding static method by name and using the types array we populated earlier.  Then, using the _java.lang.reflect.Method_ instance, we invoke the method passing the values array and _nil_ for the instance (since it's a static method).
 
 One of the nice things about this is any Java values returned from these methods will be automatically handled and wrapped by JRuby.  Thus, we can do something like this if we really want to:
 
-```ruby Person = get_class 'com.myproject.db.Person' EntityManager = get_class 'net.java.ao.EntityManager' manager = EntityManager.new(config[:uri], config[:user], config[:pass]) people = manager.find(Person.java_class) people.each do |p| puts "Person: #{p.first_name} #{p.last_name} is #{p.age} years old" end ``` 
+```ruby
+Person = get_class 'com.myproject.db.Person'
+EntityManager = get_class 'net.java.ao.EntityManager'
+
+manager = EntityManager.new(config[:uri], config[:user], config[:pass])
+people = manager.find(Person.java_class)
+
+people.each do |p|
+    puts "Person: #{p.first_name} #{p.last_name} is #{p.age} years old"
+end
+```
 
 You'll notice we don't have any special logic at work dealing with the _EntityManager_ instance or the _Person_ array and instances returned from the _find_ method.  Regardless of our fancy ClassLoader tricks and class wrapping, we can still rely upon JRuby's built-in Java integration facilities to take care of most of the heavy lifting.  The full source for the "java_classes.rb" file is available [here](<http://www.codecommit.com/blog/wp-content/uploads/2007/08/java_classes.rb>).  Note, you will have to customize the values a bit depending on your project's classpath.  Enjoy!

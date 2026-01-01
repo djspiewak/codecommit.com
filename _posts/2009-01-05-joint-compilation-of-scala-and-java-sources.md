@@ -16,11 +16,19 @@ All this is old news, but what you may not know is the fact that Scala is capabl
 
 For starters, you need to know a little bit about how joint compilation works, both in Groovy and in Scala.  Our motivating example will be the following stimulating snippet:
 
-```scala // foo.scala class Foo class Baz extends Bar ``` 
+```scala
+// foo.scala
+class Foo
+
+class Baz extends Bar
+```
 
 ...and the Java class:
 
-```java // Bar.java public class Bar extends Foo {} ``` 
+```java
+// Bar.java
+public class Bar extends Foo {}
+```
 
 If we try to compile `foo.scala` before `Bar.java`, the Scala compiler will issue a type error complaining that class `Bar` does not exist.  Similarly, if we attempt the to compile `Bar.java` first, the Java compiler will whine about the lack of a `Foo` class.  Now, there is actually a way to resolve this _particular_ case (by splitting `foo.scala` into two separate files), but it's easy to imagine other examples where the circular dependency is impossible to linearize.  For the sake of example, let's just assume that this circular dependency is a problem and cannot be handled piece-meal.
 
@@ -51,21 +59,78 @@ All of the following usage examples assume that you have defined the earlier exa
 
 ### Command Line
 
-``` # include both .scala AND .java files scalac -d target/classes src/main/scala/*.scala src/main/java/*.java javac -d target/classes \ -classpath $SCALA_HOME/lib/scala-library.jar:target/classes \ src/main/java/*.java ``` 
+```
+# include both .scala AND .java files
+scalac -d target/classes src/main/scala/*.scala src/main/java/*.java
+
+javac -d target/classes \
+      -classpath $SCALA_HOME/lib/scala-library.jar:target/classes \
+       src/main/java/*.java
+```
 
 ### Ant
 
-```xml  ``` 
+```xml
+<target name="build">
+    <scalac srcdir="src/main" destdir="target/classes">
+        <include name="scala/**/*.scala"/>
+        <include name="scala/**/*.java"/>
+    </scalac>
+
+    <javac srcdir="src/main/java" destdir="${scala.library}:target/classes" 
+           classpath="target/classes"/>
+</target>
+```
 
 ### Maven
 
 One thing you gotta love about Maven: it's fairly low on configuration for certain common tasks.  Given the above directory structure and the most recent version of the `maven-scala-plugin`, the following command should be sufficient for joint compilation:
 
-``` mvn compile ``` 
+```
+mvn compile
+```
 
 Unfortunately, there [have been some problems](<http://www.nabble.com/forum/ViewPost.jtp?post=20845683&framed=y>) reported with the default configuration and complex inter-dependencies between Scala and Java (and back again).  I'm not a Maven...maven, so I can't help too much, but as I understand things, this POM fragment seems to work well:
 
-```xml  org.scala-tools maven-scala-plugin compile compile compile test-compile testCompile test-compile process-resources compile maven-compiler-plugin 1.5 1.5 ``` 
+```xml
+<plugin>
+    <groupId>org.scala-tools</groupId>
+    <artifactId>maven-scala-plugin</artifactId>
+    
+    <executions>
+        <execution>
+            <id>compile</id>
+            <goals>
+            <goal>compile</goal>
+            </goals>
+            <phase>compile</phase>
+        </execution>
+        
+        <execution>
+            <id>test-compile</id>
+            <goals>
+            <goal>testCompile</goal>
+            </goals>
+            <phase>test-compile</phase>
+        </execution>
+        
+        <execution>
+            <phase>process-resources</phase>
+            <goals>
+            <goal>compile</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+
+<plugin>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <source>1.5</source>
+        <target>1.5</target>
+    </configuration>
+</plugin>
+```
 
 You can find more information on [the mailing-list thread](<http://www.nabble.com/forum/ViewPost.jtp?post=20806619&framed=y>).
 
@@ -77,17 +142,25 @@ I had a little free time yesterday afternoon, so I decided to blow it by hacking
 
 Once you have Buildr's full sources, `cd` into the directory and enter the following command:
 
-``` rake setup install ``` 
+```
+rake setup install
+```
 
 You may need to `gem install` a few packages.  Further, the exact steps required may be slightly different on different platforms.  You can find more details [on Buildr's project page](<http://incubator.apache.org/buildr/contributing.html#working_with_source_code>).
 
 With this highly-unstable version of Buildr installed on your unsuspecting system, you should now be able to make the following addition to your `buildfile` (assuming the directory structure given earlier):
 
-```ruby require 'buildr/scala' # rest of the file... ``` 
+```ruby
+require 'buildr/scala'
+
+# rest of the file...
+```
 
 Just like Buildr's joint compilation for Groovy, you must explicitly `require` the language, otherwise important things will break.  With this slight modification, you should be able to build your project as per normal:
 
-``` buildr ``` 
+```
+buildr
+```
 
 This support is so bleeding-edge, I don't even think that it's safe to call it "pre-alpha".  If you run into any problems, feel free to [shoot me an email](<mailto:djspiewak@gmail.com>) or [comment on the issue](<http://issues.apache.org/jira/browse/BUILDR-136>).
 

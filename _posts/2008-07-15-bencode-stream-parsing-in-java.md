@@ -38,7 +38,84 @@ Anyway, back to the problem at hand. In addition to the `CompositeType` and `Pri
 
 Enough babble though, let's see some code! Here's how we might encode some very simple data using the generator framework:
 
-```java public class GeneratorTest { public static void main(String[] args) { ByteArrayOutputStream os = new ByteArrayOutputStream(); final byte[] picture = new byte[0]; // presumably something interesting DictionaryType root = new DictionaryType() { @Override protected void populate(SortedSet> entries) { entries.add(new EntryType( new LiteralStringType("name"), new LiteralStringType("Arthur Dent"))); entries.add(new EntryType( new LiteralStringType("number"), new IntegerType(42))); entries.add(new EntryType( new LiteralStringType("picture"), new StringType() { @Override protected long getLength() { return picture.length; } @Override protected void writeValue(OutputStream os) throws IOException { os.write(picture); } })); entries.add(new EntryType( new LiteralStringType("planets"), new ListType() { @Override protected void populate(ListTypeStream list) throws IOException { list.add(new LiteralStringType("Earth")); list.add(new LiteralStringType("Somewhere else")); list.add(new LiteralStringType("Old Earth")); } })); } }; try { root.write(os); } catch (IOException e) { e.printStackTrace(); } System.out.println(new String(os.toByteArray())); } private static class LiteralStringType extends StringType implements Comparable { private final String value; public LiteralStringType(String value) { this.value = value; } @Override protected long getLength() { return value.length(); } @Override protected void writeValue(OutputStream os) throws IOException { os.write(value.getBytes("US-ASCII")); } public int compareTo(LiteralStringType o) { return o.value.compareTo(value); } } } ``` 
+```java
+public class GeneratorTest {
+    public static void main(String[] args) {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        final byte[] picture = new byte[0];        // presumably something interesting
+        
+        DictionaryType root = new DictionaryType() {
+            @Override
+            protected void populate(SortedSet<EntryType<?>> entries) {
+                entries.add(new EntryType<LiteralStringType>(
+                        new LiteralStringType("name"), 
+                        new LiteralStringType("Arthur Dent")));
+                entries.add(new EntryType<LiteralStringType>(
+                        new LiteralStringType("number"), 
+                        new IntegerType(42)));
+                
+                entries.add(new EntryType<LiteralStringType>(
+                        new LiteralStringType("picture"), 
+                        new StringType() {
+                    
+                    @Override
+                    protected long getLength() {
+                        return picture.length;
+                    }
+
+                    @Override
+                    protected void writeValue(OutputStream os) throws IOException {
+                        os.write(picture);
+                    }
+                }));
+                
+                entries.add(new EntryType<LiteralStringType>(
+                        new LiteralStringType("planets"), 
+                        new ListType() {
+    
+                    @Override
+                    protected void populate(ListTypeStream list) throws IOException {
+                        list.add(new LiteralStringType("Earth"));
+                        list.add(new LiteralStringType("Somewhere else"));
+                        list.add(new LiteralStringType("Old Earth"));
+                    }
+                }));
+            }
+        };
+        
+        try {
+            root.write(os);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+        System.out.println(new String(os.toByteArray()));
+    }
+    
+    private static class LiteralStringType extends StringType 
+            implements Comparable<LiteralStringType> {
+        private final String value;
+        
+        public LiteralStringType(String value) {
+            this.value = value;
+        }
+
+        @Override
+        protected long getLength() {
+            return value.length();
+        }
+
+        @Override
+        protected void writeValue(OutputStream os) throws IOException {
+            os.write(value.getBytes("US-ASCII"));
+        }
+
+        public int compareTo(LiteralStringType o) {
+            return o.value.compareTo(value);
+        }
+    }
+}
+```
 
 It's hard to imagine why some people claim that Java is a verbose language...
 
@@ -46,11 +123,31 @@ The API may seem a little clumsy, but most of that is caused by the conniptions 
 
 The result of the above is as follows:
 
-``` d4:name11:Arthur Dent6:numberi42e7:picture0:7:planetsl5:Earth14:Somewhere else9:Old Earthee ``` 
+```
+d4:name11:Arthur Dent6:numberi42e7:picture0:7:planetsl5:Earth14:Somewhere else9:Old Earthee
+```
 
 Or, with a little formatting to make it more palatable:
 
-``` d 4:name 11:Arthur Dent 6:number i42e 7:picture 0: 7:planets l 5:Earth 14:Somewhere else 9:Old Earth e e ``` 
+```
+d
+  4:name
+  11:Arthur Dent
+  
+  6:number
+  i42e
+  
+  7:picture
+  0:
+  
+  7:planets
+  l
+    5:Earth
+    14:Somewhere else
+    9:Old Earth
+  e
+e
+```
 
 Technically, this is no longer valid bencode, but it is much easier to read this way.
 
@@ -64,7 +161,12 @@ My initial designs for the parser attempted to follow the example set by the gen
 
 As before, a common superinterface sits above the entire representative hierarchy. To understand this hierarchy a little better, perhaps it would be helpful to look at the full source for `Value`:
 
-```java public interface Value { public T resolve() throws IOException; public boolean isResolved(); } ``` 
+```java
+public interface Value<T> {
+    public T resolve() throws IOException;
+    public boolean isResolved();
+}
+```
 
 The `resolve()` method is really the core of the entire parser. The concept is that each value will be able to consume the bytes necessary to determine its own value, which is converted and returned. This is extremely convenient because it enables `VariantValue`(s) (such as string) to carry the logic for parsing to a specific length, rather than the conventional **e** terminator. In order to avoid clogging up memory, the return value of `resolve()` should _not_ be [memoized](<http://en.wikipedia.org/wiki/Memoization>) (though, there is nothing in the framework to prevent it). Conventionally, values which are already resolved should throw an exception if they are resolved a second time. This prevents the framework from holding onto values which are no longer needed.
 
@@ -72,7 +174,41 @@ You will also notice that `CompositeValue` not only inherits from `Value`, but a
 
 Returning to primitive values, the resolve() method for IntegerValue is worthy of note, not so much for its uniqueness, but because it is very similar to the parsing technique used in all the other values:
 
-```java public Long resolve() throws IOException { if (resolved) { throw new IOException("Value already resolved"); } resolved = true; boolean negative = false; long value = 0; int b = 0; while ((b = is.read()) >= 0) { int digit = b - '0'; if (digit < 0 || digit > 9) { if (b == '-') { negative = true; } else if (b == 'e') { break; } else { throw new IOException("Unexpected character in integer value: " \+ Character.forDigit(b, 10)); } } else { value = (value * 10) + digit; } } if (negative) { value *= -1; } return value; } ``` 
+```java
+public Long resolve() throws IOException {
+    if (resolved) {
+        throw new IOException("Value already resolved");
+    }
+    resolved = true;
+    
+    boolean negative = false;
+    long value = 0;
+    
+    int b = 0;
+    while ((b = is.read()) >= 0) {
+        int digit = b - '0';
+        
+        if (digit < 0 || digit > 9) {
+            if (b == '-') {
+                negative = true;
+            } else if (b == 'e') {
+                break;
+            } else {
+                throw new IOException("Unexpected character in integer value: " 
+                    + Character.forDigit(b, 10));
+            }
+        } else {
+            value = (value * 10) + digit;
+        }
+    }
+    
+    if (negative) {
+        value *= -1;
+    }
+    
+    return value;
+}
+```
 
 The **i** prefix itself is consumed before control flow even enters this method. This is because the prefix is required to determine the appropriate value implementation to use. Specifically, the logic to perform this determination is contained within the `Parser` class, which maintains a map of `Value`(s) and their associated prefixes. String values have special logic associated with them, as they do not have a prefix.
 
@@ -80,7 +216,64 @@ As with most hand-coded parsers, this one operates on the principle of "eat unti
 
 Actually, the real heart of the parser framework is `CompositeValue`. This class is inherited by Parser to define a special value encompassing the stream itself (which is viewed as a composite value with no delimiters and only a single child). This unification allows us to keep the code for parsing a composite stream in a single location. This implementation is a little less concise than the code for parsing an integer, but it follows the same pattern and is fairly instructive:
 
-```java protected final Value parse() throws IOException { if (resolved) { throw new IOException("Composite value already resolved"); } if (previous != null) { if (!previous.isResolved()) { previous.resolve(); // ensure we're at the right spot in the stream } } byte b = -1; if (readAhead instanceof Some) { b = readAhead.value(); readAhead = new None(); } else { b = read(); } if (b >= 0) { Class> valueType = parser.getValueType(b); if (valueType != null) { return previous = Parser.createValue(valueType, parser, is); } else if (b > '0' && b <= '9') { return previous = readString(b - '0'); } else if (b == ' ' || b == '\n' || b == '\r' || b == '\t') { return parse(); // loop state } else { throw new IOException("Unexpected character in the parse stream: " \+ Character.forDigit(b, 10)); } } throw new IOException("Unexpected end of stream in composite value"); } private final StringValue readString(long length) throws IOException { int i = is.read(); if (i >= 0) { byte b = (byte) i; if (b == ':') { return Parser.createValue(StringValue.class, parser, new SubStream(is, length)); } else if (b >= '0' && b <= '9') { return readString((length * 10) + b - '0'); } else { throw new IOException("Unexpected character in string value: " \+ Character.forDigit(i, 10)); } } throw new IOException("Unexpected end of stream in string value"); } ``` 
+```java
+protected final Value<?> parse() throws IOException {
+    if (resolved) {
+        throw new IOException("Composite value already resolved");
+    }
+    
+    if (previous != null) {
+        if (!previous.isResolved()) {
+            previous.resolve();        // ensure we're at the right spot in the stream
+        }
+    }
+    
+    byte b = -1;
+    if (readAhead instanceof Some) {
+        b = readAhead.value();
+        readAhead = new None<Byte>();
+    } else {
+        b = read();
+    }
+    
+    if (b >= 0) {
+        Class<? extends Value<?>> valueType = parser.getValueType(b);
+        
+        if (valueType != null) {
+            return previous = Parser.createValue(valueType, parser, is);
+        } else if (b > '0' && b <= '9') {
+            return previous = readString(b - '0');
+        } else if (b == ' ' || b == '\n' || b == '\r' || b == '\t') {
+            return parse();        // loop state
+        } else {
+            throw new IOException("Unexpected character in the parse stream: " 
+                + Character.forDigit(b, 10));
+        }
+    }
+    
+    throw new IOException("Unexpected end of stream in composite value");
+}
+
+private final StringValue readString(long length) throws IOException {
+    int i = is.read();
+    
+    if (i >= 0) {
+        byte b = (byte) i;
+        
+        if (b == ':') {
+            return Parser.createValue(StringValue.class, parser, 
+                new SubStream(is, length));
+        } else if (b >= '0' && b <= '9') {
+            return readString((length * 10) + b - '0');
+        } else {
+            throw new IOException("Unexpected character in string value: " 
+                + Character.forDigit(i, 10));
+        }
+    }
+    
+    throw new IOException("Unexpected end of stream in string value");
+}
+```
 
 It seems a bit imposing, but really this code is more of the same logic we saw previously when dealing with integers. The only value type which really gives us trouble here is string. We can't simply treat it like the others because it has no prefix. For this reason, we must assume that _any_ unbound integer is an inclusive prefix for a string. In most parser implementations, this would require backtracking, but because we are doing this by hand, we can condense the backtrack into an inherited parameter (borrowing terminology from [attribute grammars](<http://en.wikipedia.org/wiki/Attribute_grammar>)), avoiding the performance hit.
 

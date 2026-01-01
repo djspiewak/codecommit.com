@@ -24,7 +24,34 @@ Another, more conservative way to map inheritance is inclining, where every subt
 
 As you have have guessed from my comments, I really lean toward the inline strategy.  I think this works best in a practical environment and is far more maintainable down the line.  Thankfully, this strategy is considerably easier to implement than JOINing.  Syntax-wise, inheritance is used like this:
 
-```java public interface Person extends Entity { public String getFirstName(); public void setFirstName(String firstName); public String getLastName(); public void setLastName(String lastName); } public interface Employee extends Person { public String getTitle(); public void setTitle(String title); public short getHourlyRate(); public void setHourlyRate(short rate); public Manager getManager(); public void setManager(Manager manager); } public interface Manager extends Person { @OneToMany public Employee[] getPeons(); public long getSalary(); public void setSalary(long salary); } ``` 
+```java
+public interface Person extends Entity {
+    public String getFirstName();
+    public void setFirstName(String firstName);
+
+    public String getLastName();
+    public void setLastName(String lastName);
+}
+
+public interface Employee extends Person {
+    public String getTitle();
+    public void setTitle(String title);
+
+    public short getHourlyRate();
+    public void setHourlyRate(short rate);
+
+    public Manager getManager();
+    public void setManager(Manager manager);
+}
+
+public interface Manager extends Person {
+    @OneToMany
+    public Employee[] getPeons();
+
+    public long getSalary();
+    public void setSalary(long salary);
+}
+```
 
 A fairly standard, object-oriented interface hierarchy, right?  Logically it makes sense.  This is how ActiveObjects would represent such a hierarchy in the database:
 

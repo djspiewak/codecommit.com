@@ -20,19 +20,27 @@ But irregardless, we were talking about ORMs.  When it was first introduced, Hi
 
 This all seems lovely and wonderful, but there's a catch: it doesn't work so well in practice.  Now before you stone me, I'm not talking about Hibernate specifically now, but ORMs in general.  It turns out to be completely impossible to interact with a _relational_ database solely through an object-oriented filter.  This is easily seen with a simple example:
 
-```sql SELECT * FROM people WHERE age > 21 GROUP BY lastName ``` 
+```sql
+SELECT * FROM people WHERE age > 21 GROUP BY lastName
+```
 
 How in the world are you going to represent that in an object model?  Sure, maybe you can provide a little abstraction for the query details, but it starts to get complex if you try to handle things like grouping non-declaratively.  The developers working on Hibernate quickly realized this problem and came up with an innovative solution: write their own query language!  After all, SQL is too confusing, so why not invent an entirely new query language with the "feel" of SQL (to keep the DBAs happy) but without all of the database-specific wrinkles?
 
 This query language is now called "HQL", and as the name implies, it's really SQL, but not quite.  Here's how the aforementioned example would look in HQL ( **disclaimer:** I'm not a Hibernate expert, so I may have gotten the syntax wrong):
 
-``` FROM Person WHERE :age > 21 GROUP BY :lastName ``` 
+```
+FROM Person WHERE :age > 21 GROUP BY :lastName
+```
 
 Remarkably similar, that.  Executing this query in a Hibernate persistence manager yields an ordered list of _Person_ entities pre-populated with data from the query.  It seems to make a lot of sense, but there are a number of problems with this approach.  First, it requires Hibernate to literally have its own compiler to translate HQL queries into database-specific SQL.  Second, it hasn't really solved the core problem that many developers have with SQL: it's a declarative query language.  As you can see, HQL is really just SQL in disguise, so it really doesn't eliminate SQL from your database access, just dresses it in a funny hat.
 
 Other ORMs have appeared over the years, taking alternative approaches to the problem of object-relational mapping, but none of them quite eliminating the query language.  Even DSL-based ORMs like ActiveRecord fail to remove SQL entirely:
 
-```ruby class Person < AR::Base; end Person.find(:all, :conditions => 'age > 21', :group => 'lastName') ``` 
+```ruby
+class Person < AR::Base; end
+
+Person.find(:all, :conditions => 'age > 21', :group => 'lastName')
+```
 
 It's _sort of_ SQL-free, but you can still see bits and pieces of a query language around the edges.  In fact, what ActiveRecord is actually doing here is building a proper SQL query around the SQL fragments which are passed as parameters.  It's a system which is ripe for SQL injection, but surprisingly leads to very few problems in real-world applications.  This is the approach which is also taken by [ActiveObjects](<https://activeobjects.dev.java.net>) for its database query API.
 
@@ -46,7 +54,13 @@ A quote taken out of context perhaps, but I think it applies to the "cult of SQL
 
 So what's the "right" approach?  Is there a happy medium between ActiveRecord+Ambition and full-blown [SQL on Rails](<http://www2.sqlonrails.org/>)?  I think so, and that is the approach I have been _trying_ to implement with ActiveObjects.  As I'm sure you know, ActiveObjects takes a lot of its inspiration from ActiveRecord, so the syntax for querying the database is very similar:
 
-```java EntityManager em = ... em.find(Person.class, Query.select().where("age > 21").group("lastName")); // ...or em.find(Person.class, "name > 21"); // no grouping ``` 
+```java
+EntityManager em = ...
+em.find(Person.class, Query.select().where("age > 21").group("lastName"));
+
+// ...or
+em.find(Person.class, "name > 21");   // no grouping
+```
 
 You still have the full power of SQL available to you.  You can still write complex, nested boolean conditionals and funky subqueries, but there's no longer any need to be burdened with the _whole_ of SQL's verbosity.  As with vanilla ActiveRecord, this code intends to be a bit of a hand-holder, shielding innocent application developers from the fierce world of RDBMS.
 

@@ -14,7 +14,14 @@ Several different solutions have been proposed to workaround this limitation.  
 
 Another, less common technique is to simply perform dynamic type checks within the method itself.  Like so:
 
-```ruby def create_name(fname, lname) raise "fname must be a String" unless fname.kind_of? String raise "lname must be a String" unless lname.kind_of? String fname + " " + lname end ``` 
+```ruby
+def create_name(fname, lname)
+  raise "fname must be a String" unless fname.kind_of? String
+  raise "lname must be a String" unless lname.kind_of? String
+
+  fname + " " + lname
+end
+```
 
 This code explicitly checking the dynamic _kind_ of the parameter values to ensure that they are of type or subtype of _String_.  The issues with this sample should be relatively obvious.
 
@@ -24,19 +31,53 @@ While manually type checking may be a bad solution syntactically, it's on the ri
 
 Well it turns out that someone's [already done this](<http://people.freebsd.org/~eivind/ruby/types/>).  [Eivind Eklund](<http://people.freebsd.org/~eivind/>) kindly pointed me to his type checking framework in a comment on a previous post.  The basic idea is to perform the type checking assertions, but to factor the work out into an API encapsulated by an intuitive DSL.  So rather than performing all those nasty _unless_ statements as above, we could simply do something like this:
 
-```ruby typesig String, String def create_name(fname, lname) fname + " " + lname end ``` 
+```ruby
+typesig String, String
+def create_name(fname, lname)
+  fname + " " + lname
+end
+```
 
 It's really as simple as that.  Passing the type values to the _typesig_ method just prior to a method declaration give the cue to the Types framework to perform some extra work on each call that method.  Now we have the runtime assurances that the following code will not work (with a very intuitive error message):
 
-```ruby create_name("Daniel", 123) ``` 
+```ruby
+create_name("Daniel", 123)
+```
 
 Will produce the folling output:
 
-``` ArgumentError: Arg 1 is of invalid type (expected String, got Fixnum) ``` 
+```
+ArgumentError: Arg 1 is of invalid type (expected String, got Fixnum)
+```
 
 But the fun doesn't stop there.  Ruby encourages the "[duck typing](<http://en.wikipedia.org/wiki/Duck_typing>)" pattern, where algorithm developers concern themselves not with what the value **is** but rather what it **does**.  This means that the type checking really should be done based on what methods are available, not just the raw type.  It turns out that the Types framework supports this as well:
 
-```ruby class Company def name "Blue Danube" end end class Person def name "Daniel Spiewak" end end typesig String, Type::Respond(:name) def output(msg, value) puts msg + " " + value.name end c = Company.new p = Person.new output("The company name is: ", c) output("The person is: ", p) output("The programmer is: ", "a genius") # error ``` 
+```ruby
+class Company
+  def name
+    "Blue Danube"
+  end
+end
+
+class Person
+  def name
+    "Daniel Spiewak"
+  end
+end
+
+typesig String, Type::Respond(:name)
+def output(msg, value)
+  puts msg + " " + value.name
+end
+
+c = Company.new
+p = Person.new
+
+output("The company name is: ", c)
+output("The person is: ", p)
+
+output("The programmer is: ", "a genius")    # error
+```
 
 Types can check not only the kind of the object but also to what methods it responds.  This is crucial to enabling its adoption into modern Ruby code bases, many of which rely heavily on this "duck typing" technique.
 

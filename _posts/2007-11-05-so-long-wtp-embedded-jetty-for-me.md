@@ -32,7 +32,23 @@ The next step in my evil plan was to create a main class somewhere in the projec
 
 The problem is not that Jetty has a tricky API, or any sort of gotchas in its configuration.  The problem is there's very little useful documentation which shows how to turn the trick.  So, for the record, here's the source for the main class I wrote:
 
-```java public class StartApplication { public static void main(String[] args) throws Exception { Server server = new Server(8080); Context context = new Context(server, "/", Context.SESSIONS); ServletHolder servletHolder = new ServletHolder(new WicketServlet()); servletHolder.setInitParameter("applicationClassName", "com.myapp.wicket.Application"); servletHolder.setInitOrder(1); context.addServlet(servletHolder, "/*"); server.start(); server.join(); } } ``` 
+```java
+public class StartApplication {
+    public static void main(String[] args) throws Exception {
+        Server server = new Server(8080);
+        Context context = new Context(server, "/", Context.SESSIONS);
+
+        ServletHolder servletHolder = new ServletHolder(new WicketServlet());
+        servletHolder.setInitParameter("applicationClassName",
+                "com.myapp.wicket.Application");
+        servletHolder.setInitOrder(1);
+        context.addServlet(servletHolder, "/*");
+
+        server.start();
+        server.join();
+    }
+}
+```
 
 Not really too much there once you see it all laid out for you, but it took me _way_ longer than it should have to figure out that it needed to be done that way.  Executing this class starts a new Jetty instance serving my application at <http://localhost:8080>.  I can start the app in debug mode, getting proper hot code replace (something WTP _never_ got right) and every debug feature Eclipse offers for Java apps.  To stop the server, all I need to do is hit that cryptically labeled button in the Console view which kill the running application.  Oh, and there's no need to maintain a _web.xml_ file, Jetty doesn't need it.
 

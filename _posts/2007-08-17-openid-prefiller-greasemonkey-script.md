@@ -18,7 +18,30 @@ Enter Greasemonkey.  If you haven't already installed this extension, you reall
 
 Since a Greasemonkey script by definition allows us to locally modify elements of pages as they load, we can create a script which will look for OpenID text fields in the loading page, and if found, pre-populate them with a given value (in this case, our OpenID).  This of course depends on all OpenID text fields having certain attributes in common, but thankfully this is the case.  It just so happens that every OpenID text field I've ever found has the word "openid" somewhere in either the element _id,_ or somewhere in the _name.   _Using this bit of information, we can construct a script to search for form elements matching these criterion:
 
-```javascript // ==UserScript== // @name OpenID Prefiller // @namespace codecommit.com // @description Prefills my openid into any openid text field on the page // @include * // ==/UserScript== var OPENID = 'openid.danielspiewak.org'; // change this to set your openid var all = document.getElementsByTagName('input'); for (var i = 0; i < all.length; i++) { var current = all[i]; if (current.type == 'text' && (current.id.indexOf('openid') >= 0 || current.name.indexOf('openid') >= 0) || current.id.indexOf('openId') >= 0 || current.name.indexOf('openId') >= 0) { current.value = OPENID; } } ``` 
+```javascript
+// ==UserScript==
+// @name           OpenID Prefiller
+// @namespace      codecommit.com
+// @description    Prefills my openid into any openid text field on the page
+// @include        *
+// ==/UserScript==
+
+var OPENID = 'openid.danielspiewak.org';    // change this to set your openid
+
+var all = document.getElementsByTagName('input');
+
+for (var i = 0; i < all.length; i++) {
+    var current = all[i];
+    
+    if (current.type == 'text'
+        && (current.id.indexOf('openid') >= 0
+            || current.name.indexOf('openid') >= 0)
+            || current.id.indexOf('openId') >= 0
+            || current.name.indexOf('openId') >= 0) {
+        current.value = OPENID;
+    }
+}
+```
 
 As you can see, all this does is search for _input type="text"_ elements with "openid" or "openId" in the _id_ or the _name_ attributes.  If it finds such a field, it sets its value to the OpenID we've hard-coded into the script and moves on.  Simple, yet effective.
 

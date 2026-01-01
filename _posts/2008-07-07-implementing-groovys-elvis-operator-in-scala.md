@@ -12,19 +12,40 @@ Groovy has an interesting shortening of the ternary operator that it rather fanc
 
 But before we go there, it is worth examining what this operator does and how it works in languages which already have it.  In essence, it is just a bit of syntax sugar, allowing you to easily check if a value is `null` and provide a value in the case that it is.  For example:
 
-```groovy firstName = "Daniel" lastName = null println firstName ?: "Chris" println lastName ?: "Spiewak" ``` 
+```groovy
+firstName = "Daniel"
+lastName = null
+
+println firstName ?: "Chris"
+println lastName ?: "Spiewak"
+```
 
 This profound snippet really demonstrates about all there is to the Elvis operator.  The result is as follows:
 
-``` Daniel Spiewak ``` 
+```
+Daniel
+Spiewak
+```
 
 Not terribly exciting.  Essentially, what we have is a binary operator which evaluates the left expression and tests to see if it is `null`.  In the case of `firstName`, this is false, so the right expression (in this case, `"Chris"`) is never evaluated.  However, `lastName` _is_ `null`, which means that we have to evaluate the right expression and return its value, rather than `null`.  It's all just so much syntax sugar that can be expressed equivalently in any language with a conditional operator (in this case, Java):
 
-```java String firstName = "Daniel"; String lastName = null; System.out.println((firstName == null) ? "Chris" : firstName); System.out.println((lastName == null) ? "Spiewak" : lastName); ``` 
+```java
+String firstName = "Daniel";
+String lastName = null;
+
+System.out.println((firstName == null) ? "Chris" : firstName);
+System.out.println((lastName == null) ? "Spiewak" : lastName);
+```
 
 A bit verbose, don't you think?  Of course, this isn't really a fair comparison, since Groovy is a far more concise language than Java.  Let's see how the above would render in a real man's language like Scala:
 
-```scala val firstName = "Daniel" val lastName: String = null println(if (firstName == null) "Chris" else firstName) println(if (lastName == null) "Spiewak" else lastName) ``` 
+```scala
+val firstName = "Daniel"
+val lastName: String = null
+
+println(if (firstName == null) "Chris" else firstName)
+println(if (lastName == null) "Spiewak" else lastName)
+```
 
 Better, but still a little clumsy.  The truth of the matter is that we're forced to do this sort of null checking all the time (well, maybe a little less in Scala) and the constructs for doing so are woefully inadequate.  Thus, the motivation for the Elvis operator.
 
@@ -32,7 +53,42 @@ Better, but still a little clumsy.  The truth of the matter is that we're force
 
 Like all good programmers should, we're going to start with a runnable specification for every behavior desired from the operator.  I've [written before](<http://www.codecommit.com/blog/java/the-brilliance-of-bdd>) about the [excellent Specs framework](<http://code.google.com/p/specs/>), so that's what we'll use:
 
-```scala "elvis operator" should { "use predicate when not null" in { "success" ?: "failure" mustEqual "success" } "use alternative when null" in { val test: String = null test ?: "success" mustEqual "success" } "type correctly" in { // if it compiles, then we're fine val str: String = "success" ?: "failure" val i: Int = 123 ?: 321 str mustEqual "success" i mustEqual 123 } "infer join of types" in { // must compile val res: CharSequence = "success" ?: new java.lang.StringBuilder("failure") res mustEqual "success" } "only eval alternative when null" in { var a = "success" def alt = { a = "failure" a } "non-null" ?: alt a mustEqual "success" } } ``` 
+```scala
+"elvis operator" should {
+  "use predicate when not null" in {
+    "success" ?: "failure" mustEqual "success"
+  }
+  
+  "use alternative when null" in {
+    val test: String = null
+    test ?: "success" mustEqual "success"
+  }
+  
+  "type correctly" in {		// if it compiles, then we're fine
+    val str: String = "success" ?: "failure"
+    val i: Int = 123 ?: 321
+    
+    str mustEqual "success"
+    i mustEqual 123
+  }
+  
+  "infer join of types" in {    // must compile
+    val res: CharSequence = "success" ?: new java.lang.StringBuilder("failure")	
+    res mustEqual "success"
+  }
+  
+  "only eval alternative when null" in {
+    var a = "success"
+    def alt = {
+      a = "failure"
+      a
+    }
+    
+    "non-null" ?: alt
+    a mustEqual "success"
+  }
+}
+```
 
 Fairly straightforward stuff.  I imagine that this specification for the operator is a bit more involved than the one used in the Groovy compiler, due to the fact that Scala is a statically typed language and thus requires a bit more effort to ensure that everything is working properly.  From this specification, we can infer three core properties of the operator:
 
@@ -44,17 +100,25 @@ The first property is fairly easy to understand; it is intuitive in the definiti
 
 Ignoring the second and third properties, we can actually attempt an implementation.  For the moment, we will just assume that the left and right operands must be of _exactly_ the same type, otherwise the operator will be inapplicable.  So, without further ado, implementation enters stage right:
 
-```scala implicit def elvisOperator[T](alt: T) = new { def ?:(pred: T) = if (pred == null) alt else pred } ``` 
+```scala
+implicit def elvisOperator[T](alt: T) = new {
+  def ?:(pred: T) = if (pred == null) alt else pred
+}
+```
 
 Notice the use of the anonymous inner class to carry the actual operator?  This is a fairly common trick in Scala to avoid the definition of a full-blown class just for the sake of adding a method to an existing type.  To break down what's going on here, we have defined an implicit type conversion from _any_ type `T` to our anonymous inner class.  This conversion will be inserted by the compiler whenever we invoke the `?:` operator on an expression.
 
 Sharp-eyed developers will notice something a little odd about the way this code is structured.  In fact, if you look closely, it seems that we evaluate the _right_ operand and use its value if non-null (otherwise left), which is exactly the opposite of what our specification defines.  For a normal operator, this observation would be quite correct.  However, Scala defines the associatively of operators based on the trailing symbol.  In this case, because our trailing symbol is a colon (`:`), the operator itself will be right-associative.  Thus, the following expression:
 
-```scala check ?: alternate ``` 
+```scala
+check ?: alternate
+```
 
 ...is transformed by the compiler into the following:
 
-```scala alternate.?:(check) ``` 
+```scala
+alternate.?:(check)
+```
 
 This is how right-associative operators function, by performing method calls on the _right_ operand.  Thus, we need to define our implicit conversion such that the `?:` method will be defined for the right operand, taking the left operand as a parameter.  We'll see a bit later on how this can cause trouble, but for now, let's continue with the specification.
 
@@ -70,7 +134,11 @@ One additional example should serve to really drive the point home.  Consider t
 
 This operation is fairly easy to perform by hand given the full type hierarchy.  For that matter, it isn't very difficult to write an algorithm which can efficiently compute the minimal unification of two types.  Unfortunately, we don't have that luxury here.  We cannot simply write code which is executed at compile time to determine type information, we must make use of the existing Scala type system in order to "trick" the compiler into inferring things for us.  We do this by making use of lower-bounds on type parameters.  With this in mind, we can (finally) make a first attempt at a well-typed implementation of the operator:
 
-```scala implicit def elvisOperator[T](alt: T) = new { def ?:[A >: T](pred: A) = if (pred == null) alt else pred } ``` 
+```scala
+implicit def elvisOperator[T](alt: T) = new {
+  def ?:[A >: T](pred: A) = if (pred == null) alt else pred
+}
+```
 
 The only thing we have changed is the type of the `pred` variable from `T` to a new type parameter, `A`.  This new type parameter is defined by the lower-bound T.  Translated into English, the type expression reads something like the following:
 
@@ -86,19 +154,48 @@ Unfortunately, at first glance, there doesn't really seem to be a way to avoid t
 
 The good news is that Scala's designers chose to adopt an age-old construct known as "pass-by-name parameters".  This technique dates all the way back to ALGOL (possibly even further).  In fact, it's so old and obscure that I've actually had professors tell me that it has been completely abandoned in favor of the more conventional pass-by-value (what Java, C#, Scala and most languages use) and pass-by-reference (which is available in C++).  Pass-by-name parameters are very much like normal parameters in that they are used to copy values from a calling scope into the method in question.  However, unlike normal parameters, they are evaluated on an as-needed basis.  This means that a pass-by-name parameter will only be evaluated if its value is required within the method called.  For example:
 
-```scala def doSomething(a: =>Int) = 1 + 2 def createInteger() = { println("Made integer") 42 } println("In the beginning...") doSomething(createInteger()) println("...at the end") ``` 
+```scala
+def doSomething(a: =>Int) = 1 + 2
+def createInteger() = {
+  println("Made integer")
+  42
+}
+
+println("In the beginning...")
+doSomething(createInteger())
+println("...at the end")
+```
 
 Counter to our first intuition, this will print the following:
 
-``` In the beginning... ...at the end ``` 
+```
+In the beginning...
+...at the end
+```
 
 In other words, the `createInteger` method is never called!  This is because the value of the pass-by-name parameter in the `doSomething` method is never accessed, meaning that the value of the expression is not needed.  The `a` parameter is denoted pass-by-name by the `=>` notation (just in case you were wondering).  We can apply this to our implementation by changing the parameter of the implicit conversion from pass-by-value to pass-by-name:
 
-```scala implicit def elvisOperator[T](alt: =>T) = new { def ?:[A >: T](pred: A) = if (pred == null) alt else pred } ``` 
+```scala
+implicit def elvisOperator[T](alt: =>T) = new {
+  def ?:[A >: T](pred: A) = if (pred == null) alt else pred
+}
+```
 
 The language-level implementation of the `if`/`else` conditional expression will ensure that the `alt` parameter is only accessed iff the value of `pred` is `null`, meaning we have finally satisfied all three properties.  We can check this by compiling and running our specification from earlier:
 
-``` Specification "TernarySpecs" elvis operator should \+ use predicate when not null \+ use alternative when null \+ type correctly \+ infer join of types \+ only eval alternative when null Total for specification "TernarySpecs": Finished in 0 second, 78 ms 5 examples, 6 assertions, 0 failure, 0 error ``` 
+```
+Specification "TernarySpecs"
+  elvis operator should
+  + use predicate when not null
+  + use alternative when null
+  + type correctly
+  + infer join of types
+  + only eval alternative when null
+
+Total for specification "TernarySpecs":
+Finished in 0 second, 78 ms
+5 examples, 6 assertions, 0 failure, 0 error
+```
 
 ### Conclusion
 

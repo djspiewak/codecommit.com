@@ -36,13 +36,32 @@ The answer is to to turn the problem on its ear (as it were) and eschew mathemat
 
 Note that while Ruby is used in the following sample, the proof inference is actually language agnostic.  This is because the parsed ASTs for any language are virtually identical (which is what allows so many languages to run on the JVM).
 
-```ruby class MyTestClass def multiply(a, b) a * b end end obj = MyTestClass.new puts obj.multiply(5, 6) ``` 
+```ruby
+class MyTestClass
+  def multiply(a, b)
+    a * b
+  end
+end
+
+obj = MyTestClass.new
+puts obj.multiply(5, 6)
+```
 
 Such a simple example, but so many possible bugs.  For example, we could easily misspell the `multiply` method name, leading to a runtime error.  Also, we could add instead of multiply in the method definition.  There are truly hundreds of ways this can go wrong.  That's where the program prover steps in.
 
 We define a simple Scala driver which reads the input from stdin and drives the proof inference framework.  The framework then returns output which we print to stdout.
 
-```scala object Driver extends Application { val ast = Parser.parseAST(System.in) val infer = new ProofInference(InferenceStyle.AGRESSIVE) val prover = new ProgramProver(infer.createInference(ast)) val output = prover.prove(ast) println(output) } ``` 
+```scala
+object Driver extends Application {
+  val ast = Parser.parseAST(System.in)
+
+  val infer = new ProofInference(InferenceStyle.AGRESSIVE)
+  val prover = new ProgramProver(infer.createInference(ast))
+
+  val output = prover.prove(ast)
+  println(output)
+}
+```
 
 It's as simple as that!  When we run this driver against our sample application, we get the following result:
 
@@ -52,7 +71,14 @@ Notice how the output is automatically formatted for easy reading?  This featur
 
 Of course, anyone can write a program which outputs fancy ASCII art, the real trick is making the output actually mean something.  If there's a bug in our program, we want the prover to find it and notify us.  To see how this works, let's write a new Ruby sample with a minor bug:
 
-```ruby class Person < AR::Base end me = Person.find(1) me.ssn = '123-45-6789' me.save ``` 
+```ruby
+class Person < AR::Base
+end
+
+me = Person.find(1)
+me.ssn = '123-45-6789'
+me.save
+```
 
 It's an extremely subtle flaw.  The problem here is that the `ssn` field does not exist in the database.  This Ruby snippet will parse correctly and the Ruby interpreter will blithely execute it until the critical point in code, when the entire runtime will crash.  This is exactly the sort of bug that Ruby on Rails adopters have had to deal with constantly.
 

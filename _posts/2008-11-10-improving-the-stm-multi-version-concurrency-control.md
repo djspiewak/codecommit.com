@@ -14,7 +14,21 @@ I wrote a post some time ago introducing a [software transactional memory (STM) 
 
 Allow me to illustrate.  Imagine two transactions, each executing concurrently in a world with two reference cells.  One transaction reads from both cells, subtracts one from the other and then uses the result as a divisor.  The other transaction increments both cells in lock-step with each other.  Put into code, this would look something like the following:
 
-```scala val a = new Ref(1) val b = new Ref(0) def compute(x: Int)(implicit t: Transaction) = x / (a - b) def interfere(implicit t: Transaction) { a := a + 1 b := b + 1 } atomic(compute(3)(_)) // in thread-1 ... atomic(interfere(_)) // in thread-2 ``` 
+```scala
+val a = new Ref(1)
+val b = new Ref(0)
+
+def compute(x: Int)(implicit t: Transaction) = x / (a - b)
+
+def interfere(implicit t: Transaction) {
+  a := a + 1
+  b := b + 1
+}
+
+atomic(compute(3)(_))         // in thread-1
+...
+atomic(interfere(_))          // in thread-2
+```
 
 Incidentally, I know that the whole `interfere(_)` syntax is a bit ugly.  Voice your opinion on RFE [#1492](<https://lampsvn.epfl.ch/trac/scala/ticket/1492>).
 
@@ -26,7 +40,11 @@ Note that this issue does not indicate a failure in the _safeguards_ , just an i
 
 When I created the STM implementation, I recognized that this case can indeed arise.  To compensate for this, I created a dumb catch-all within the transaction dispatch process.  This code literally swallows all exceptions coming from within the transaction, treating them as signals to abort and retry.  This works-around our exceptional-interferance issue from above, but it does bring consequences of its own:
 
-```scala def badBoy(implicit t: Transaction) { throw RuntimeException("Er...") } ``` 
+```scala
+def badBoy(implicit t: Transaction) {
+  throw RuntimeException("Er...")
+}
+```
 
 This transaction will _always_ throw an exception, regardless of the state of the references or any other transactions.  With the originally envisioned design, this exception would have simply propagated out from where the transaction was kicked off (wherever the `atomic` method was called) and life would have been happy.  Unfortunately, with our catch-all in place (required to solve the earlier problem) this code will fall into an infinite loop.
 
@@ -34,7 +52,21 @@ The problem is that the catch-all will field the `RuntimeException` and assume t
 
 Speaking of infinite loops, we still haven't really solved our interference problem from above.  In our first snippet, we created a data contention situation which could non-deterministically cause an exception to be thrown.  In order to solve this problem, we introduced a catch-all to swallow the exception and just keep right on trucking.  This "solution" not only introduces some undesired behavior (swallowing legitimate exceptions), but it also fails to really fix the issue.  Consider the following slight variation on our previous theme:
 
-```scala val a = new Ref(1) val b = new Ref(0) def maybeLoop(implicit t: Transaction) { while (a <= b) { // should never happen } } def interfere(implicit t: Transaction) { a := a + 1 b := b + 1 } ``` 
+```scala
+val a = new Ref(1)
+val b = new Ref(0)
+
+def maybeLoop(implicit t: Transaction) {
+  while (a <= b) {
+    // should never happen
+  }
+}
+
+def interfere(implicit t: Transaction) {
+  a := a + 1
+  b := b + 1
+}
+```
 
 In case it isn't obvious, the `while`-loop in `maybeLoop` should never actually execute.  We have defined references `a` and `b` to have values such that `a` is always strictly greater than `b`.  The only transaction which modifies these values preserves this property, and so by easy induction we can prove that the conditional "`a <= b`" is in fact a contradiction.
 
@@ -56,11 +88,63 @@ This all sounds quite well-and-good, but how would we go about creating such a m
 
 Obviously, a different approach is needed.  That's where the committal process comes into play.  With the old design, when a transaction commits, it would first check for any reference faults, then if everything was dandy it would write the necessary changes to the global state for each reference.  In code it looked like this:
 
-```scala def commit() = { if (world.size > 0) { CommitLock.synchronized { val back = world.foldLeft(true) { (success, tuple) => val (ref, _) = tuple success && ref.rev == version(ref) } if (back) { for (ref <\- writes) { ref.contents = (world(ref), rev) } } back } } else true } ``` 
+```scala
+def commit() = {
+  if (world.size > 0) {
+    CommitLock.synchronized {
+      val back = world.foldLeft(true) { (success, tuple) =>
+        val (ref, _) = tuple
+        success && ref.rev == version(ref)
+      }
+      
+      if (back) {
+        for (ref <- writes) {
+          ref.contents = (world(ref), rev)
+        }
+      }
+      
+      back
+    }
+  } else true
+}
+```
 
 MVCC is going to require this `commit` method to do a little extra legwork.  Rather than _just_ writing the changes into the global state, `commit` will need to loop through any active transaction, saving the old values _for only the modified references_ within each of these transaction's logs.  This dramatically reduces the amount of looping and saving which takes place without actually imposing too much extra overhead.  This change - combined with a separation of `reads` and `writes` within a transaction - actually looks like the following:
 
-```scala def preserve[T](ref: Ref[T]) { val castRef = ref.asInstanceOf[Ref[Any]] if (!world.contains(castRef)) { val (v, rev) = ref.contents world(castRef) = v version(castRef) = rev } } def commit() = { if (world.size > 0) { CommitLock.synchronized { val f = { ref: Ref[Any] => ref.rev == version(ref) } val back = reads.forall(f) && writes.forall(f) if (back) { for (ref <\- writes) { for (t <\- Transaction.active) { if (t != this) t.preserve(ref) // preserve the old contents of t } ref.contents = (world(ref), rev) } } back } } else true } ``` 
+```scala
+def preserve[T](ref: Ref[T]) {
+  val castRef = ref.asInstanceOf[Ref[Any]]
+  
+  if (!world.contains(castRef)) {
+    val (v, rev) = ref.contents
+    
+    world(castRef) = v
+    version(castRef) = rev
+  }
+}
+
+def commit() = {
+  if (world.size > 0) {
+    CommitLock.synchronized {
+      val f = { ref: Ref[Any] => ref.rev == version(ref) }
+      val back = reads.forall(f) && writes.forall(f)
+      
+      if (back) {
+        for (ref <- writes) {
+          for (t <- Transaction.active) {
+            if (t != this) t.preserve(ref)       // preserve the old contents of t
+          }
+          
+          ref.contents = (world(ref), rev)
+        }
+      }
+      
+      back
+    }
+    
+  } else true
+}
+```
 
 Amazingly enough, this tiny little change is all that is required to implement MVCC within our STM.  Well, of course I'm skipping the implementation of `Transaction.active` as well as the bitsy concurrency semantics required to make it all work, but you weren't really interested in any of that, were you?
 
@@ -72,7 +156,11 @@ Final aside worthy of mention: you need not concern yourself that all of this ex
 
 Realizing that my blog was not the most convenient way to distribute project files for a semi-serious library like the Scala STM, I decided to [put the project on GitHub](<http://github.com/djspiewak/scala-stm/tree/master>).  For those who hate following links, you can checkout, build and test (see below) the library using the following commands (assuming you have both Git and [Buildr](<http://incubator.apache.org/buildr/>) installed):
 
-``` git clone git://github.com/djspiewak/scala-stm.git cd scala-stm buildr ``` 
+```
+git clone git://github.com/djspiewak/scala-stm.git
+  cd scala-stm
+  buildr
+```
 
 In a flurry of activity besides the addition of MVCC, I have also added some reasonably-comprehensive BDD specs to ensure that the correctness of the implementation isn't just in my head.  Of course, all of the tests are probabilistic, but I think the library is finally to a point where they can be relied upon.  If you like, I'll even distribute a proper pre-built JAR.
 

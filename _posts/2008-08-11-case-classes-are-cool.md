@@ -22,17 +22,36 @@ Before we get into _why_ they're so nice, we should probably look at _what_ they
 
 What this means is that we can write code like the following:
 
-```scala case class Person(firstName: String, lastName: String) val me = Person("Daniel", "Spiewak") val first = me.firstName val last = me.lastName if (me == Person(first, last)) { println("Found myself!") println(me) } ``` 
+```scala
+case class Person(firstName: String, lastName: String)
+
+val me = Person("Daniel", "Spiewak")
+val first = me.firstName
+val last = me.lastName
+
+if (me == Person(first, last)) {
+  println("Found myself!")
+  println(me)
+}
+```
 
 The output of the above is as follows:
 
-``` Found myself! Person(Daniel,Spiewak) ``` 
+```
+Found myself!
+Person(Daniel,Spiewak)
+```
 
 Notice that we're glossing over the issue of pattern matching and extractors for the moment. To the regular-Joe object-oriented developer, the really interesting bits are the `equals()` method and the automatic conversion of the constructor parameters into fields. Considering how many times I have built "Java Bean" classes solely for the purpose of wrapping data up in a nice neat package, it is easy to see where this sort of syntax sugar could be useful.
 
 However, the above does deserve some qualification: the compiler hasn't actually generated both the accessors _and_ the mutators for the constructor fields, only the accessors. This comes back to Scala's convention of "immutability first". As we all know, Scala is more than capable of expressing standard imperative idioms with all of their mutable gore, but it tries to encourage the use of a more functional style. In a sense, case classes are really more of a counterpart to type constructors in languages like ML or Haskell than they are to Java Beans. Nevertheless, it is still possible to make use of the syntax sugar provided by case classes without giving up mutability:
 
-```scala case class Person(var firstName: String, var lastName: String) val me = Person("Daniel", "Spiewak") me.firstName = "Christopher" // call to a mutator ``` 
+```scala
+case class Person(var firstName: String, var lastName: String)
+
+val me = Person("Daniel", "Spiewak")
+me.firstName = "Christopher"   // call to a mutator
+```
 
 By prefixing each constructor field with the `var` keyword, we are effectively instructing the compiler to generate a mutator as well as an accessor method. It does require a bit more syntactic bulk than the immutable default, but it also provides more flexibility. Note that we may also use this `var`-prefixed parameter syntax on standard classes to define constructor fields, but the compiler will only auto-generate an `equals()` (as well as `hashCode()` and `toString()`) method on a case class.
 
@@ -46,7 +65,51 @@ Well, he's right...at least as far as the pattern matching bit is involved. Case
 
 The point that I think Cedric (and others) have missed entirely is that case classes are far more than just a means to get at pattern matching. Even the most stringent object-oriented developer has to admit that a slick syntax for declaring a data container (like a bean) would be a nice thing to have. What's more, Scala's automatic generation of a companion object for every case class lends itself very nicely to some convenient abstractions. Consider a scenario I ran into a few months back:
 
-```scala class MainWindow(parent: Shell) extends Composite(parent, SWT.NONE) { private lazy val display = parent.getDisplay private val panels = Map("Foreground" -> ForegroundPanel, "Background" -> BackgroundPanel, "Font" -> FontPanel) setLayout(new FillLayout()) val folder = new TabFolder(this, SWT.BORDER) for ((text, make) <\- panels) { val item = new TabItem(folder, SWT.NONE) val panel = make(folder) item.setText(text) item.setControl(panel) } def this() = this(new Shell(new Display())) def open() { parent.open() layout() while (!parent.isDisposed) { if (!display.readAndDispatch()) { display.sleep() } } } } case class ForegroundPanel(parent: Composite) extends Composite(parent, SWT.NONE) { ... } case class BackgroundPanel(parent: Composite) extends Composite(parent, SWT.NONE) { ... } case class FontPanel(parent: Composite) extends Composite(parent, SWT.NONE) { ... } ``` 
+```scala
+class MainWindow(parent: Shell) extends Composite(parent, SWT.NONE) {
+  private lazy val display = parent.getDisplay
+  
+  private val panels = Map("Foreground" -> ForegroundPanel, 
+                           "Background" -> BackgroundPanel, 
+                           "Font" -> FontPanel)
+  
+  setLayout(new FillLayout())
+  
+  val folder = new TabFolder(this, SWT.BORDER)
+  for ((text, make) <- panels) {
+    val item = new TabItem(folder, SWT.NONE)
+    val panel = make(folder)
+
+    item.setText(text)
+    item.setControl(panel)
+  }
+
+  def this() = this(new Shell(new Display()))
+
+  def open() {
+    parent.open()
+    layout()
+
+    while (!parent.isDisposed) {
+      if (!display.readAndDispatch()) {
+        display.sleep()
+      }
+    }
+  }
+}
+
+case class ForegroundPanel(parent: Composite) extends Composite(parent, SWT.NONE) {
+  ...
+}
+
+case class BackgroundPanel(parent: Composite) extends Composite(parent, SWT.NONE) {
+  ...
+}
+
+case class FontPanel(parent: Composite) extends Composite(parent, SWT.NONE) {
+  ...
+}
+```
 
 If you ignore the SWT boiler-plate, the really interesting bits here are the `Map` of `panels` and the initialization loop for the `TabItem`(s). In essence, I am making use of a cute little trick with the companion objects of each of the panel case classes. These objects are automatically generated by the compiler extending function type: `(Composite)=>` _ForegroundPanel_ , where _ForegroundPanel_ is replaced by the case class in question. Because each of these classes extends `Composite`, the inferred type of `panels` will be: `Map[String, (Composite)=>Composite]`. _(actually, I'm cheating a bit and not giving the_ precise _inference, only its effective equivalent)_
 

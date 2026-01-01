@@ -14,19 +14,34 @@ I'm going to assume you already have a working understanding of context-free gra
 
 ### Recursion
 
-``` S ::= '(' S ')' | '(' ')' ``` 
+```
+S ::= '(' S ')'
+    | '(' ')'
+```
 
 In this grammar, the `S` non-terminal is recursive because one of its productions refers back to itself. Specifically, the first rule corresponding to the `S` non-terminal is of the form _α`S` β_, where _α_ and _β_ stand for some arbitrary rule fragments (in this case, `'('` and `')'`, respectively).
 
 When a non-terminal maps to a production which is recursive in its _first_ token, we say that rule is _left-recursive_. For example:
 
-``` E ::= E '+' N | E '-' N | N N ::= '1' | '2' | '3' | ... ``` 
+```
+E ::= E '+' N
+    | E '-' N
+    | N
+
+N ::= '1' | '2' | '3' | ...
+```
 
 In this grammar, the `E` non-terminal is left-recursive in two of its three productions. Left-recursion is a particularly significant property of a grammar because it means that any left-to-right parse process would need to parse `E` by _first_ parsing `E` itself, and then parsing `'+'` and finally `N` (assuming that the parser is using the first production). As you can imagine, it would be very easy for a naïve parsing algorithm to get into an infinite loop, trying to parse `E` by first parsing `E`, which requires parsing `E`, which requires parsing `E`, etc.
 
 Mathematically, left-recursive productions are always of the form _α`E` β_ where _α —> ε_. In plain-English, this means that a production is left recursive if the part of the production preceding the recursive token represents the empty string ( _ε_ ). This is a very nice way of defining left-recursion, because it allows for a specific type of left-recursion known as _hidden_ left-recursion. For example:
 
-``` A ::= B A '.' | '.' B ::= ',' | ``` 
+```
+A ::= B A '.'
+    | '.'
+
+B ::= ','
+    |
+```
 
 Notice how the second production for `B` is empty? This means that `B` _can_ map to _ε_ , and thus `A` exhibits hidden left-recursion. The difference between hidden and direct left-recursion is that hidden left-recursion is obscured by other rules in the grammar. If we didn't know that `B` had the potential to produce the empty string, then we would never have realized that `A` is left-recursive.
 
@@ -38,11 +53,17 @@ It's worth noting that left-recursion cannot be handled by top-down algorithms (
 
 It is perhaps surprising that context-free grammars are not required to be unambiguous. This means that a grammar is allowed to accept a particular input by using more than one possible sequence of rules. The classic example of this is arithmetic associativity:
 
-``` E ::= E '+' E | E '-' E | '1' | '2' | '3' | '4' | ... ``` 
+```
+E ::= E '+' E
+    | E '-' E
+    | '1' | '2' | '3' | '4' | ...
+```
 
 This is an extremely natural way to encode the grammar for mathematical plus and minus. After all, when we mentally think about the `+` operator, we imagine the structure as two expressions separated by `+`, where an expression may be a primitive number, or a complex expression like another addition or a subtraction operation. Unfortunately, this particular encoding has a rather problematic ambiguity. Consider the following expression:
 
-``` 4 + 5 + 2 ``` 
+```
+4 + 5 + 2
+```
 
 Clearly this is a valid expression, and a parser for the example grammar will certainly accept it as input. However, if we try to generate a parse tree for this expression, we're going to run into two possible outcomes:
 
@@ -55,7 +76,11 @@ Of course, in the case of addition, associativity doesn't matter too much, we ge
 
 If you think about it, in order to correctly handle ambiguity, a parser would need to return not just one parse tree for a particular input, but _all possible_ parse trees. The parser's execution would have to keep track of all of these possibilities at the same time, somehow following each one to its conclusion maintaining its state to the very end. This is not an easy problem, particularly in the face of grammars like the following:
 
-``` S ::= S S S | S S | 'a' ``` 
+```
+S ::= S S S
+    | S S
+    | 'a'
+```
 
 Clearly, this is a contrived grammar. However, it's still a valid CFG that a generalized parsing algorithm would need to be able to handle. The problem is that there are an _exponential_ number of possible parse trees for any given (valid) input. If the parser were to naïvely follow each and every one of these possibilities one at a time, even on a short string, the parse process would take more time than is left in the age of the universe as we know it. Obviously, that's not an option.
 

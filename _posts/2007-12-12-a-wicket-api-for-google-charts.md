@@ -10,11 +10,19 @@ wordpress_path: /java/a-wicket-api-for-google-charts
 
 Google made the headlines last week with their announcement of a [brand new API](<http://code.google.com/apis/chart/>) for graphical display of data, supporting several different display types (line, bar, pie, etc).  The API (such as it is) works by taking different parameters as part of a URL and then generating a PNG chart based on the data.  For example:
 
-``` http://chart.apis.google.com/chart?cht=p3&chd;=s:hW&chs;=250x100&chl;=Hello|World ``` ![](http://chart.apis.google.com/chart?cht=p3&chd=s:hW&chs=250x100&chl=Hello|World)
+```
+http://chart.apis.google.com/chart?cht=p3&chd=s:hW&chs=250x100&chl=Hello|World
+```
+
+![](http://chart.apis.google.com/chart?cht=p3&chd=s:hW&chs=250x100&chl=Hello|World)
 
 Great, so now you all know that I can read publicly available websites.  What's cool here is I can tweak the graph however I please, just by messing with the URL:
 
-``` http://chart.apis.google.com/chart?cht=p3&chd;=s:hWj&chs;=250x100&chl;=Hello|Chicago|London ``` ![](http://chart.apis.google.com/chart?cht=p3&chd=s:hWj&chs=250x100&chl=Hello|Chicago|London)
+```
+http://chart.apis.google.com/chart?cht=p3&chd=s:hWj&chs=250x100&chl=Hello|Chicago|London
+```
+
+![](http://chart.apis.google.com/chart?cht=p3&chd=s:hWj&chs=250x100&chl=Hello|Chicago|London)
 
 Pretty magical!  But aside from playing with different ways to represent useless information in 3D, it's hard to imagine actually _using_ it in one of your own web applications.  Oh sure, maybe you'll employ it to generate the odd plot for your blog now and again, but for your really solid business needs, you're going to stick with something which has a slightly more developer-friendly API.
 
@@ -24,17 +32,53 @@ So the idea is to create a nice, object-oriented _Chart_ component backed by Goo
 
 I took some time today, and managed to prototype a fully-functional version of just such an API.  Cleverly enough, I'm calling it "wicket-googlecharts".  Thanks to the inherent complexities of charting and the difficulties of intuitively mapping the concepts into an object-oriented hierarchy, the API is still a bit odd.  However, I'm fairly confident that it's easier than doing the URLs by hand:
 
-```java IChartData data = new AbstractChartData() { public double[][] getData() { return new double[][] {{34, 22}}; } }; ChartProvider provider = new ChartProvider(new Dimension(250, 100), ChartType.PIE_3D, data); provider.setPieLabels(new String[] {"Hello", "World"}); add(new Chart("helloWorld", provider)); data = new AbstractChartData() { public double[][] getData() { return new double[][] {{34, 30, 38, 38, 41, 22, 41, 44, 38, 29}}; } }; provider = new ChartProvider(new Dimension(200, 125), ChartType.LINE, data); ChartAxis axis = new ChartAxis(ChartAxisType.BOTTOM); axis.setLabels(new String[] {"Mar", "Apr", "May", "June", "July"}); provider.addAxis(axis); axis = new ChartAxis(ChartAxisType.LEFT); axis.setLabels(new String[] {null, "50 Kb"}); provider.addAxis(axis); add(new Chart("lineHelloWorld", provider)); ``` 
+```java
+IChartData data = new AbstractChartData() {
+    public double[][] getData() {
+        return new double[][] {{34, 22}};
+    }
+};
+
+ChartProvider provider = new ChartProvider(new Dimension(250, 100), 
+        ChartType.PIE_3D, data);
+provider.setPieLabels(new String[] {"Hello", "World"});
+
+add(new Chart("helloWorld", provider));
+
+data = new AbstractChartData() {
+    public double[][] getData() {
+        return new double[][] {{34, 30, 38, 38, 41, 22, 41, 44, 38, 29}};
+    }
+};
+
+provider = new ChartProvider(new Dimension(200, 125), ChartType.LINE, data);
+
+ChartAxis axis = new ChartAxis(ChartAxisType.BOTTOM);
+axis.setLabels(new String[] {"Mar", "Apr", "May", "June", "July"});
+provider.addAxis(axis);
+
+axis = new ChartAxis(ChartAxisType.LEFT);
+axis.setLabels(new String[] {null, "50 Kb"});
+provider.addAxis(axis);
+
+add(new Chart("lineHelloWorld", provider));
+```
 
 And the HTML:
 
-```html4strict 
-
-## Hello World
-
-## Line Hello World
-
-``` 
+```html4strict
+<html xmlns:wicket="http://wicket.apache.org">
+    <body>
+        <h2>Hello World</h2>
+        
+        <img wicket:id="helloWorld"/>
+        
+        <h2>Line Hello World</h2>
+        
+        <img wicket:id="lineHelloWorld"/>
+    </body>
+</html>
+```
 
 The resulting charts look like this:
 
@@ -52,7 +96,15 @@ The class itself is surprisingly simple.  Basically it's just a bunch of logic 
 
 As far as Wicket is concerned, here's the only interesting bit in the entire API:
 
-```java @Override protected void onComponentTag(ComponentTag tag) { checkComponentTag(tag, "img"); super.onComponentTag(tag); tag.put("src", constructURL()); } ``` 
+```java
+@Override
+protected void onComponentTag(ComponentTag tag) {
+    checkComponentTag(tag, "img");
+    super.onComponentTag(tag);
+    
+    tag.put("src", constructURL());
+}
+```
 
 Devilishly clever, I know.  See how incredibly easy it is to write your own Wicket component?  Practically speaking, there's almost nothing going on here.  All we do is listen for the _onComponentTag_ event, verify that we are indeed working with an <img/> tag, modify the _src_ attribute to some generated URL and we're home free!  I really hate to go on and on about this, but the Wicket devs really deserve their props for making a very slick and extensible API.  Anyway, back to the charts mechanism...
 
@@ -62,7 +114,9 @@ That's really about the only earth-shattering bit of code in the entire chart AP
 
 One thing that's worth drawing attention to is that I tried to stick with Java-conventional values within the chart model rather than the more normal HTML values.  For example, setting the first two graph colors might look something like this:
 
-```java provider.setColors(new Color[] {Color.RED, new Color(255, 0, 255, 127}); ``` 
+```java
+provider.setColors(new Color[] {Color.RED, new Color(255, 0, 255, 127});
+```
 
 Notice the extra integer value in the second color?  Because the API is using proper _java.awt.Color_ instances, we can specify colors not just in RGB, but in full ARGB (the 'A' stands for "alpha"), allowing transparency.  Alex Blewitt has [an example of dubious usefulness](<http://alblue.blogspot.com/2007/12/use-transparent-backgrounds-in-google.html>) which shows how this can be applied.
 

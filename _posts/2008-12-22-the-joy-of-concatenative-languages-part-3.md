@@ -22,31 +22,45 @@ In this article, we're going to look at how we can define a type system for a fu
 
 Let's start out with typing something simple.  Consider the following program:
 
-```cat ``` 
+```cat
+
+```
 
 For those of you reading the RSS, what you see between the previous paragraph and this is exactly what I intended to write: nothing at all.  In a concatenative language, the empty program is usually considered to be valid.  After all, it takes a stack as input and returns the _exact_ same stack.  We could replicate the semantics of this program by writing "`dup pop`", but why bother?
 
 The empty program has the following type:
 
-``` (->) ``` 
+```
+(->)
+```
 
 Or, more properly:
 
-``` ('A -> 'A) ``` 
+```
+('A -> 'A)
+```
 
 To the left of the `-<` we have what I like to call the "input constraints": what types must be on the stack coming into the program (or phrase).  To the right of the arrow are the "output constraints": what types will be on the stack when we're done.  For reasons which will become clear later on, `'A` in this case represents the whole input stack (regardless of what it contains).  Since we never change anything on the stack (the program is, after all, empty), the output stack has whatever type the input stack was given.  Another way of writing this type would be as follows:
 
-``` * -> * ``` 
+```
+* -> *
+```
 
 This literally symbolizes our intuition that the empty program has no input _or_ output constraints.  However, this is somewhat less correct notationally since it implies that the input and output stacks are unrelated.  In fact, I would go so far as to say that this notation is _wrong_.  The only reason it is produced here is to serve as a memory aid.  For the remainder of the article, we will be using Cat's notation for types.
 
 Let's look at something a little less trivial.  Consider the following program one word at a time:
 
-```cat 1 2 + ``` 
+```cat
+1 2 +
+```
 
 Remember that an integer literal (or any literal for that matter) is just a function which pushes a specific constant onto the stack.  Let's assign types based on what we _expect_ the input/output constraints of these functions to be.  **Note:** I will be using the colon (`:`) notation to denote a type.  This isn't conventional coming from C-land, but it is the gold standard of formal type theory:
 
-``` 1 : ('A -> 'A Int) 2 : ('A -> 'A Int) \+ : ('A Int Int -> 'A Int) ``` 
+```
+1 : ('A -> 'A Int)
+2 : ('A -> 'A Int)
++ : ('A Int Int -> 'A Int)
+```
 
 This is all very intuitive.  Integer literals work on any stack and just produce that stack with a new `Int` pushed onto the top.  Both `1` and `2` have the same type, which is a good sign that we're on the right track.
 
@@ -66,13 +80,21 @@ Do you see how the input stack of each word matches the output stack of the prev
 
 This is fine for a simple addition program, but what if we throw functions into the mix?  Consider the same program we just analyzed wrapped up within a function:
 
-```cat define addSome { 1 2 + } addSome ``` 
+```cat
+define addSome {
+  1 2 +
+}
+
+addSome
+```
 
 Here we define a function which has as a body the program we have already analyzed.  Down at the bottom of our new program, we actually call this function.  Here is the question: what type does the `addSome` word have?
 
 To answer this question, look back at the table above and consider the **Input Stack** for the first word in concert with the **Output Stack** for the last.  Putting these two types together yields the following type for the aggregated whole:
 
-``` 1 2 + : ('A -> 'A Int) ``` 
+```
+1 2 + : ('A -> 'A Int)
+```
 
 These words (or "phrase") takes any stack as input, and then through some manipulation produces a single `Int` on top of that stack as a result.  The stack may grow and shrink within the function, but at the end of the day, only the `Int` remains.  As we would expect, this matches the runtime semantics perfectly.
 
@@ -86,15 +108,24 @@ At the start of execution, the input stack to any program is `*`, or the empty s
 
 This is all so nice and intuitive, so let's consider the case where we have a function which actually takes some parameters.  Specifically, let's consider the following definition:
 
-```cat define addTwice { \+ + } ``` 
+```cat
+define addTwice {
+  + +
+}
+```
 
 At runtime, this function will take three values off the stack and then add them all together.  It is the Cat equivalent of the following in Scala:
 
-```scala def addTwice(a: Int, b: Int, c: Int) = a + b + c ``` 
+```scala
+def addTwice(a: Int, b: Int, c: Int) = a + b + c
+```
 
 The question is: how do we assign this (the Cat function) a type?  As we have done before, let's look at the types of the individual words:
 
-``` \+ : ('A Int Int -> 'A Int) \+ : ('A Int Int -> 'A Int) ``` 
+```
++ : ('A Int Int -> 'A Int)
++ : ('A Int Int -> 'A Int)
+```
 
 Not much help there.  Let's try making a table:
 
@@ -116,7 +147,9 @@ The solution is to merge the input constraints across both words.  The first wo
   
 With this new table, all of the **Input** and **Output** stacks match, which means that the type is valid and can prove runtime evaluation.  Thus, based on this whole song and dance, we can assign the following type:
 
-``` addTwice : ('A Int Int Int -> 'A Int) ``` 
+```
+addTwice : ('A Int Int Int -> 'A Int)
+```
 
 As expected, this function takes not two, but _three_ `Int`(s) on the stack and returns the remainder of that stack with a new `Int` on top.
 
@@ -124,19 +157,28 @@ As expected, this function takes not two, but _three_ `Int`(s) on the stack and 
 
 One mildly-annoying issue that we have just skated over is the problem of polymorphism.  Consider the following two programs:
 
-```cat 42 pop ``` 
+```cat
+42 pop
+```
 
 And this...
 
-```cat "fourty-two" pop ``` 
+```cat
+"fourty-two" pop
+```
 
 The question is: what type do we assign to `pop`?  We can easily make the following two assertions:
 
-``` 42 : ('A -> 'A Int) "fourty-two" : ('A -> 'A String) ``` 
+```
+42           : ('A -> 'A Int)
+"fourty-two" : ('A -> 'A String)
+```
 
 If we attempt to use this information to type-check the first program (assuming that it is sound), we will arrive at the following type for `pop`:
 
-``` pop : ('A Int -> 'A) ``` 
+```
+pop : ('A Int -> 'A)
+```
 
 That's intuitive, right?  All that we're doing here is taking the first value off of the stack (an `Int`, in the case of the first program) and throwing it away, returning the remainder of the stack.  However, if we use this type, we will run into some serious troubles type-checking the second program:
 
@@ -149,7 +191,9 @@ Since `pop` has type `('A Int -> 'A)` (as we asserted above), it is inapplicable
 
 The only way to solve this problem is to introduce the concept of parametric types.  Literally, we need to define a type which can be _instantiated_ against a given stack, regardless of what type happens to match the parameters in question.  Java calls this concept "generics".  Rather than giving `pop` the overly-restrictive type of `('A Int -> 'A)`, we will instead allow the value on top of the stack to be of _any_ type (not just `Int`):
 
-``` pop : ('A 'a -> 'A) ``` 
+```
+pop : ('A 'a -> 'A)
+```
 
 Note the fact that `'A` and `'a` are very separate type variables in this snippet.  `'A` represents the "rest of the stack", while `'a` represents a specific type which just happens to be on top of the input stack.  Using this new, more flexible type, we can produce tables for both of our earlier programs:
 
@@ -167,7 +211,9 @@ Note the fact that `'A` and `'a` are very separate type variables in this snippe
   
 Everything matches and the world is once again very happy.  Note that we can also apply this parametric type concept to the slightly more interesting example of `dup`:
 
-``` dup : ('A 'a -> 'A 'a 'a) ``` 
+```
+dup : ('A 'a -> 'A 'a 'a)
+```
 
 In other words, `dup` says that whatever type is on top of the stack when it starts, that type will be on top of the stack _twice_ when it is finished.  Just like `pop`, this type can be instantiated against any stack with at least one type, regardless of whether that type is `Int`, `String`, or anything else for that matter.
 
@@ -175,25 +221,35 @@ In other words, `dup` says that whatever type is on top of the stack when it sta
 
 We've seen how to type-check simple phrases, as well as first-order functions with deferred stack access and the occasional polymorphic word.  However, there is one particularly troublesome aspect of concatenative type systems which we have completely ignored: functions which take quotations off the stack.  In other words: what type do we assign to `apply`?  Consider the following function:
 
-```cat define trouble { apply } ``` 
+```cat
+define trouble {
+  apply
+}
+```
 
 At runtime, `trouble` will pop a quotation and then evaluate it against the remainder of the stack.  Intuitively, we need to have some way of representing the type of a quotation, but that's not even the most serious problem.  Somehow, we need to constrain the quotation to itself accept _exactly_ the stack which remains after it is popped.  We also need to find some way of capturing its output type in order to compute the final output type of `trouble`.
 
 More concretely, we can make a first attempt at assigning a type for `trouble`.  The underscores (`_`) illustrate an area where our type system is incapable of helping us:
 
-``` trouble : (_ (_ -> _) -> _) ``` 
+```
+trouble : (_ (_ -> _) -> _)
+```
 
 It's very tempting to just throw an `'A` in there and be done with it, but the truth is that for this type expression, there is no "unused stack".  We don't really know how much (or how little) of the stack will be used by the quotation; it could pop five elements, twenty or none at all.  It literally needs access to the remainder of the input stack _in its entirety_ , otherwise the expression is useless.  Enter stack polymorphism...
 
 Just as we needed a way to represent any _single_ type in order to type-check `pop` and `dup`, we now need a way to represent any _stack_ type in order to type-check `apply`.  Fortunately, the answer is already nestled within our pre-established notation.  Consider the type of `+`:
 
-``` \+ : ('A Int Int -> 'A Int) ``` 
+```
++ : ('A Int Int -> 'A Int)
+```
 
 We have been taking this to mean "any stack with two `Int`(s) on top resulting in that same stack with only one `Int`".  This is true, but we're being a little hand-wavy about the meaning of "any stack" and how it relates to `'A`.  When we really get down to it, what's happening here is `'A` is being _instantiated_ against a particular input stack, whatever that stack happens to be.  When we were type-checking `+ +`, the first word instantiated `'A` not to mean the empty stack (`*`), but rather a stack with at least one `Int` on it.  This was required to successfully type the second `+`.
 
 We can very easily extend this notational convenience to represent generalized stack parameters.  Rather than being instantiated to specific types, stack parameters are instantiated to some stack in its entirety.  Just as with type parameters, wherever we see that instantiated stack parameter within a type expression, it will be replaced with whatever stack type it was assigned.  Thus, we can assign `trouble` the following type:
 
-``` trouble : ('A ('A -> 'B) -> 'B) ``` 
+```
+trouble : ('A ('A -> 'B) -> 'B)
+```
 
 In other words, `trouble` takes some stack _A_ which has a quotation on top.  This quotation accepts stack _A_ itself and returns some new stack _B_.  Note that we don't really know anything about _B_.  It could be related to _A_ , but it might not be.  The final result of the whole expression is this new stack _B_.
 
@@ -201,11 +257,17 @@ This concept is remarkably powerful.  With it in combination with the other typ
 
 From a theoretical standpoint, things get even more interesting when we consider the type of the following function:
 
-```cat define y { [dup papply] swap compose dup apply } ``` 
+```cat
+define y {
+  [dup papply] swap compose dup apply
+}
+```
 
 This has the following type:
 
-``` y : ('A ('A ('A -> 'B) -> 'B) -> 'B) ``` 
+```
+y : ('A ('A ('A -> 'B) -> 'B) -> 'B)
+```
 
 As you may have guessed by the name, this is the [Y-combinator](<http://en.wikipedia.org/wiki/Y-combinator>)[1](<#prt3-1>), one of the most well-known mechanisms for producing recursion in a nameless system.  Note that this definition looks a little different from the pure-untyped lambda calculus (call-by-name semantics):
 
@@ -215,7 +277,9 @@ What I'm trying to point out here is the fact that Cat is able to leverage its t
 
 **Update:** The above paragraph is somewhat misleading.  It turns out that Cat actually _does_ use a recursive type under the surface to derive the non-recursive type for `y`.  Specifically:
 
-``` dup papply : ('A ('B ('B self -> 'C) -> 'C) -> 'A ('B -> 'C)) ``` 
+```
+dup papply : ('A ('B ('B self -> 'C) -> 'C) -> 'A ('B -> 'C))
+```
 
 On a further theoretical note, the device in Cat's type system which allows this power is in fact the stack type variable (e.g. `'A`).  These stack types are conceptually quite similar to the type parameters we used in typing `pop` (e.g. `'a`), but still in a very separate domain.  In fact, stack types have a different _kind_ than regular types.  This is not to say that Cat employs higher-kinds such as Scala's (e.g. `* => *`), but it does have two very different type kinds: stacks and values.
 

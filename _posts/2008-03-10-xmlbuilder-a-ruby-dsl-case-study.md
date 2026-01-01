@@ -12,7 +12,21 @@ XML is probably the most ubiquitous and most recognizable format in the modern d
 
 So in that sense, XML is a mixed blessing.  Its flexibility and intuitive nature allows developers to store just about any data in a human readable, easy-to-debug manner.  Unfortunately, its verboseness often makes _generating_ the actual XML a very frustrating and boring foray into the land of boiler-plate.  Various techniques have been developed over the years to smooth this process (e.g. manipulating a DOM tree or reflectively marshalling objects directly to XML), but on the whole, generating XML in code is just as annoying as it has always been.  We've all written code like this in the past:
 
-```java public String toXML() { final String INDENT = " "; StringBuilder back = new StringBuilder( "\n\n"); back.append("\n"); for (Book book : getBooks()) { back.append(INDENT).append("").append(book.getTitle()).append("\n"); } back.append(""); return back.toString(); } ``` 
+```java
+public String toXML() {
+    final String INDENT = "    ";
+    StringBuilder back = new StringBuilder(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n");
+
+    back.append("<person name=\"").append(getName()).append("\">\n");
+    for (Book book : getBooks()) {
+        back.append(INDENT).append("<book>").append(book.getTitle()).append("</book>\n");
+    }
+    back.append("</person>");
+
+    return back.toString();
+}
+```
 
 Not the most pleasant of algorithms.  Oh there's nothing complex or challenging about the code, it's just annoying (as String manipulation often is).  Things would get a little more interesting if we actually had some sort of recursive hierarchy to traverse, but even then it would still be pretty straight-forward.  XML generation is tedious grudge-work to which we all must submit from time to time.
 
@@ -38,7 +52,25 @@ So, we've got brevity and logical structure.  As minor goals, we also may want 
 
 With these goals in mind, let's try writing a static syntax for our Person/Book example above. Bear in mind that every construct used in the syntax must be valid Ruby which the interpreter will swallow.  _How_ it will swallow is unimportant right now.  For this step, it's helpful to remember that the _ruby -c_ command will perform a syntax check on a source file without actually attempting to run any sort of interpretation.
 
-```ruby xml.person :name => 'Daniel "Leroy" Spiewak' do book do 'Godel, Escher, Bach' end book do 'The Elegant Universe' end book do 'Fabric of the Cosmos' end book do "The Hitchhiker's Guide to the Galaxy" end book # book with no title end puts xml # prints the generated XML ``` 
+```ruby
+xml.person :name => 'Daniel "Leroy" Spiewak' do
+  book do
+    'Godel, Escher, Bach'
+  end
+  book do
+    'The Elegant Universe'
+  end
+  book do
+    'Fabric of the Cosmos'
+  end
+  book do
+    "The Hitchhiker's Guide to the Galaxy"
+  end
+  book    # book with no title
+end
+
+puts xml  # prints the generated XML
+```
 
 Note that this is all static, there's no dynamically generated _data_ to muddle the picture.  We can worry about that later.
 
@@ -72,7 +104,35 @@ All that work and we still haven't even written a solid line of code.  What we 
 
 Starting with the easy one, let's implement a basic framework around _xml()_.
 
-```ruby require 'singleton' module XML class XMLBuilder attr_reader :last private def initialize end def method_missing(sym, *args, █) # ... end def to_s @last end def self.instance @@instance ||= new end end end def xml XML::XMLBuilder.instance end ``` 
+```ruby
+require 'singleton'
+
+module XML
+  class XMLBuilder
+    attr_reader :last
+    
+    private
+    def initialize
+    end
+    
+    def method_missing(sym, *args, &block)
+      # ...
+    end
+
+    def to_s
+      @last
+    end
+	
+    def self.instance
+      @@instance ||= new
+    end
+  end
+end
+
+def xml
+  XML::XMLBuilder.instance
+end
+```
 
 Notice how we're using a singleton instance of _XMLBuilder_?  That's because there's no need for us to have more than one instance exposed to the DSL users.  _XMLBuilder_ is just a placeholder class that dispatches the first level of commands for the DSL and will assemble the result for us as it executes.  Thus, _XMLBuilder_ can be considered the root of our DSL, the corner-stone upon which the entire API is bootstrapped.  We do however need to allow for other, private instances as we'll see later on.
 
@@ -80,7 +140,30 @@ Another item worthy of note in this snippet is the non-standard _method_missing_
 
 We can now try a first-pass implementation of _method_missing_.  This implementation is really just a sample with a very significant shortcoming.  The actual implementation is quite a bit more complex.
 
-```ruby def method_missing(sym, *args, █) @last = "<#{sym.to_s}" if args.size > 0 and args[0].is_a? Hash # never hurts to be sure args[0].each do |key, value| @last += " #{key.to_s}=\"#{value.to_s}\"" end end if block.nil? @last += "/>" # if there's no children, just close the tag else @last += ">" builder = XMLBuilder.new builder.instance_eval block @last += builder.last @last += "" end end ``` 
+```ruby
+def method_missing(sym, *args, &block)
+  @last = "<#{sym.to_s}"
+
+  if args.size > 0 and args[0].is_a? Hash  # never hurts to be sure
+    args[0].each do |key, value|
+      @last += " #{key.to_s}=\"#{value.to_s}\""
+    end
+  end
+
+  if block.nil?
+    @last += "/>"   # if there's no children, just close the tag
+  else
+    @last += ">"
+	
+    builder = XMLBuilder.new
+    builder.instance_eval block
+	
+    @last += builder.last
+	
+    @last += "</#{sym.to_s}>"
+  end
+end
+```
 
 Again, this is just the rough idea.  In our actual implementation we need to be concerned about things like valid attribute values (as demonstrated in our sample), proper element names, etc.
 
@@ -104,11 +187,48 @@ As with all internal DSLs, the user-friendly DSL syntax is supported by an API t
 
 Hopefully this was a worthwhile trek into the gory innards of implementing an internal DSL.  I leave you with one final code sample to whet your appetite for the fully-implemented API.  This is an extract from the [ActiveObjects](<https://activeobjects.dev.java.net>) Ant build file converted to use our new DSL.  It's interesting that this converted version is significantly cleaner than the original, XML form.
 
-```ruby require 'xmlbuilder' xml.project :name => 'ActiveObjects', :default => :build do dirname :property => 'activeobjects.dir', :file => '${ant.file.ActiveObjects}' property :file => '${activeobjects.dir}/build.properties' target :name => :init do mkdir :dir => '${activeobjects.dir}/bin' end target :name => :build, :depends => :init do javac :srcdir => '${activeobjects.dir}/src', :source => 1.5, :debug => true end target :name => :build_test, :depends => [:init, :build] do property :name => 'javadoc.intern.path', :value => '${activeobjects.dir}/${javadoc.path}' end end puts xml ``` 
+```ruby
+require 'xmlbuilder'
+
+xml.project :name => 'ActiveObjects', :default => :build do
+  dirname :property => 'activeobjects.dir', :file => '${ant.file.ActiveObjects}'
+  property :file => '${activeobjects.dir}/build.properties'
+  
+  target :name => :init do
+    mkdir :dir => '${activeobjects.dir}/bin'
+  end
+  
+  target :name => :build, :depends => :init do
+    javac :srcdir => '${activeobjects.dir}/src', :source => 1.5, :debug => true
+  end
+  
+  target :name => :build_test, :depends => [:init, :build] do
+    property :name => 'javadoc.intern.path', :value => '${activeobjects.dir}/${javadoc.path}'
+  end
+end
+
+puts xml
+```
 
 This will print the following XML:
 
-```xml  ``` 
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="ActiveObjects" default="build">
+  <dirname property="activeobjects.dir" file="${ant.file.ActiveObjects}"/>
+  <property file="${activeobjects.dir}/build.properties"></property>
+  <target name="init">
+    <mkdir dir="${activeobjects.dir}/bin" />
+  </target>
+  <target name="build" depends="init">
+    <javac source="1.5" debug="yes" srcdir="${activeobjects.dir}/src"/>
+  </target>
+  <target name="build_test" depends="init,build">
+    <property name="javadoc.intern.path" value="${activeobjects.dir}/${javadoc.path}"></property>
+  </target>
+</project>
+```
 
 The fully implemented DSL is available in a single Ruby file. Also linked are some examples to provide a more balanced view of the capabilities.
 

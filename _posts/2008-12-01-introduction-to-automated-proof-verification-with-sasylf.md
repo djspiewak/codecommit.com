@@ -26,26 +26,58 @@ There are three main components to a SASyLF proof:
 
 Intuitively enough, the syntax section is where we express the grammar for the language used throughout our proof.  This grammar is expressed very naturally using BNF, just as if we were defining the language mathematically for a hand-written proof.  Left-recursion is allowed, as is right-recursion, arbitrary symbols, ambiguity and so on.  SASyLF's parser is mind bogglingly powerful, capable of chewing threw just about any syntax you throw at it.  The main restriction is that you cannot use parentheses, square brackets (`[]`), pipes (`|`) or periods (`.`) in your syntax.  The pure-untyped lambda calculus defined in SASyLF would look something like this:
 
-|  ``` t ::= fn x => t[x] | t t | x ```   
+|  
+
+```
+<span style="color: #000000;">t ::=<span style="color: #ff00cc;"> </span><span style="color: #ff00cc;">fn</span><span style="color: #ff00cc;"> </span><span style="color: #66ccff; font-weight: bold;">x</span><span style="color: #ff00cc;"> </span><span style="color: #ff00cc;">=</span><span style="color: #ff00cc;">></span><span style="color: #ff00cc;"> </span><span style="color: #ff00cc;">t</span><span style="color: #000000; font-weight: bold;">[</span><span style="color: #66ccff; font-weight: bold;">x</span><span style="color: #000000; font-weight: bold;">]</span>
+<span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;">|</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #ff00cc;">t</span><span style="color: #ff00cc;"> </span><span style="color: #ff00cc;">t</span>
+<span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;">|</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #66ccff; font-weight: bold;">x</span>
+</span>
+```
 ---|---  
   
 I said we couldn't use brackets, but that's only because SASyLF assigns some special magic to these operators.  In a nutshell, they allow the above definition of lambda calculus to ignore all of the issues associated with variable name freshness and context.  For simplicity's sake, that's about as far as I'm going to go into these mysterious little thingies.
 
 The judgments section is where we define our inference rules.  Just as if we were defining these rules by hand, the syntax has the conditionals above a line of hyphens with the conclusion below.  The label for the rule goes to the right of the "line".  What could be more natural?
 
-|  ``` judgment eval: t -> t t1 -> t1' --------------- E-Beta1 t1 t2 -> t1' t2  ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">judgment</span><span style="color: #006699; font-weight: bold;"> </span><span style="color: #9900cc;">eval</span><span style="color: #006699; font-weight: bold;">:</span> t &#45;> t
+
+t1 &#45;> t1'
+<span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">E&#45;Beta1</span>
+t1 t2 &#45;> t1' t2
+</span>
+```
 ---|---  
   
 The `judgment` syntax is what defines the syntax for the `->` "operator".  Once SASyLF sees this, it knows that we may define rules of the form `t -> t`, where `t` is defined by the syntax section.  Further on down, SASyLF sees our `E-Beta1` rule.  Each of the tokens within this rule (aside from `->`) begins with "`t`".  From this, SASyLF is able to infer that we mean "a term as defined previously".  Thus, this rule is syntactically valid according to our evaluation judgment and the syntax given above.
 
 Of course, theorems are where you will find the real meat of any proof (I'm using the word "proof" very loosely to mean the collection of proven theorems and lemmas which indicates some fact(s) about a language).  SASyLF wouldn't be a very complete proof verification system without support for some form of proving.  Once again, the syntax is extremely natural language, almost to the point of being overly-verbose.  A simple theorem given the rules above plus a little would be to show that values cannot evaluate:
 
-|  ``` theorem eval-value-implies-contradiction: forall e: t -> t' forall v: t value exists contradiction . _: contradiction by unproved end theorem ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">theorem</span> <span style="color: #9900cc;">eval&#45;value&#45;implies&#45;contradiction:</span>
+    <span style="color: #009966; font-weight: bold;">forall</span><span style="color: #009966; font-weight: bold;"> </span><span style="color: #9966ff;">e:</span> t &#45;> t'
+    <span style="color: #009966; font-weight: bold;">forall</span><span style="color: #009966; font-weight: bold;"> </span><span style="color: #9966ff;">v:</span> t value
+    <span style="color: #009966; font-weight: bold;">exists</span> contradiction <span style="color: #000000; font-weight: bold;">.</span>
+
+<span style="color: #9966ff;"> </span><span style="color: #9966ff;"> </span><span style="color: #9966ff;"> </span><span style="color: #9966ff;"> </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>contradiction <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="background: #ffffcc; color: #ff0066;">unproved</span>
+<span style="color: #006699; font-weight: bold;">end theorem</span>
+</span>
+```
 ---|---  
   
 Note that `contradiction` is not more SASyLF magic.  We can actually define what it means to have a contradiction by adding the following lines to our judgment section:
 
-|  ``` judgment absurd: contradiction  ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">judgment</span><span style="color: #006699; font-weight: bold;"> </span><span style="color: #9900cc;">absurd</span><span style="color: #006699; font-weight: bold;">:</span> contradiction
+</span>
+```
 ---|---  
   
 In other words, we can have a contradiction, but there are no rules which allow us to get it.  In fact, the only way to have a contradiction is to somehow get SASyLF to the point where it sees that there are no cases which satisfy some set of proven facts (given the `forall` assumptions).  If SASyLF cannot find any cases to satisfy some rules, it allows us to derive anything at all, including judgments which have no corresponding rules.
@@ -56,12 +88,30 @@ Readers who have yet to fall asleep will notice that I cleverly elided a portion
 
 For this case study, we're going to be working with simple counting numbers which start with `0` and then proceed upwards, each value expressed as the successor of its previous value.  Thus, the logical number 3 would be `s s s 0`.  Not a very useful language in the real world, but much easier to deal with in the field of proof verification.  The syntax for our natural numbers looks like this:
 
-|  ``` n ::= 0 | s n ```   
+|  
+
+```
+<span style="color: #000000;">n ::=<span style="color: #ff00cc;"> </span><span style="color: #ff00cc;">0</span>
+<span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;">|</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #ff00cc;">s</span><span style="color: #ff00cc;"> </span><span style="color: #ff00cc;">n</span>
+</span>
+```
 ---|---  
   
 With this humble definition for `n`, we can go on to define the mathematical greater-than comparison using two rules under a single judgment:
 
-|  ``` judgment gt: n > n ------- gt-one s n > n n1 > n2 --------- gt-more s n1 > n2  ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">judgment</span><span style="color: #006699; font-weight: bold;"> </span><span style="color: #9900cc;">gt</span><span style="color: #006699; font-weight: bold;">:</span> n > n
+
+<span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;one</span>
+s n > n
+
+n1 > n2
+<span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;more</span>
+s n1 > n2
+</span>
+```
 ---|---  
   
 Believe it or not, this is all we need to do in terms of definition.  The first rule says that the successor of any number is greater than that same number (3 > 2).  The second rule states that if we already have two numbers, one greater than the other (12 > 4), then the successor of the greater number will still be greater than the lesser (13 > 4).  All very intuitive, but the real question is whether or not we can prove anything with these definitions.
@@ -70,7 +120,26 @@ Believe it or not, this is all we need to do in terms of definition.  The first
 
 For openers, we can try something reasonably simple: prove that all non-zero numbers are greater than zero.  This is such a simple proof that we won't even bother calling it a theorem, we will give it the lesser rank of "lemma":
 
-|  ``` lemma all-gt-zero: forall n exists s n > 0 . _: s n > 0 by induction on n: case 0 is _: s 0 > 0 by rule gt-one end case case s n1 is g: s n1 > 0 by induction hypothesis on n1 _: s s n1 > 0 by rule gt-more on g end case end induction end lemma ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">lemma</span> <span style="color: #9900cc;">all&#45;gt&#45;zero:</span>
+    <span style="color: #009966; font-weight: bold;">forall</span><span style="color: #009966; font-weight: bold;"> </span>n
+    <span style="color: #009966; font-weight: bold;">exists</span> s n > 0 <span style="color: #000000; font-weight: bold;">.</span>
+    
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n > 0 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">induction</span><span style="color: #9966ff;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">n:</span>
+        <span style="color: #006699; font-weight: bold;">case</span> 0 <span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s 0 > 0 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">rule</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #cc00cc;">gt&#45;one</span>
+        <span style="color: #006699; font-weight: bold;">end case</span>
+        
+        <span style="color: #006699; font-weight: bold;">case</span> s n1 <span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">g:</span><span style="color: #9966ff;"> </span>s n1 > 0 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">induction hypothesis</span><span style="color: #9966ff;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">n1</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s s n1 > 0 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">rule</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #cc00cc;">gt&#45;more</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">g</span>
+        <span style="color: #006699; font-weight: bold;">end case</span>
+    <span style="color: #006699; font-weight: bold;">end induction</span>
+<span style="color: #006699; font-weight: bold;">end lemma</span>
+</span>
+```
 ---|---  
   
 In order to prove anything about `n`, we first need to "pull it apart" and find out what it's made of.  To do that, we're going to use `induction`.  We could also use `case analysis`, but that would only work if our proof didn't require "recursion" (we'll get to this in a minute).  There are two cases as given by the syntax for `n`: when `n` is "`0`", and when `n` is "`s n1`", where `n1` is some other number.  We must prove that `s n > 0` for both of these cases individually, otherwise our proof is not valid.
@@ -87,35 +156,106 @@ However, `gt-more` has a condition in our definition.  It requires that we alre
 
 A slightly more difficult task would be to prove that the successors of two numbers preserves their greater-than relationship.  Thus, if we know that 4 > 3, we can prove that 5 > 4.  More formally:
 
-|  ``` theorem gt-implies-gt-succ: forall g: n1 > n2 exists s n1 > s n2 . _: s n1 > s n2 by unproved end theorem ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">theorem</span> <span style="color: #9900cc;">gt&#45;implies&#45;gt&#45;succ:</span>
+    <span style="color: #009966; font-weight: bold;">forall</span><span style="color: #009966; font-weight: bold;"> </span><span style="color: #9966ff;">g:</span> n1 > n2
+    <span style="color: #009966; font-weight: bold;">exists</span> s n1 > s n2 <span style="color: #000000; font-weight: bold;">.</span>
+    
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n1 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="background: #ffffcc; color: #ff0066;">unproved</span>
+<span style="color: #006699; font-weight: bold;">end theorem</span>
+</span>
+```
 ---|---  
   
 At first glance, this looks impossible since we don't really have a rule dealing with `s n` on the right-hand side of the `>`-sign.  We can try to prove this one step at a time to see whether or not this intuition is correct.
 
 Almost any lemma of interest is going to require induction, so immediately we jump to inducting on the only fact we have available: `g`.  Note that this is different from what we had in the earlier example.  Instead of getting the different syntactic cases, we're looking at the the rules which would have allowed the input to be constructed.  After all, whoever "called" our theorem will have needed to somehow prove that `n1 > n2`, it would be helpful to know what facts they used to do that.  SASyLF allows this using the `case rule` syntax.  We start with the easy base case:
 
-|  ``` _: s n1 > s n2 by induction on g: case rule ------------ gt-one _: s n2 > n2 is _: s s n2 > s n2 by rule gt-one end case end induction ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n1 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">induction</span><span style="color: #9966ff;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">g:</span>
+    <span style="color: #006699; font-weight: bold;">case rule</span>
+<span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;one</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n2 > n2
+    <span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s s n2 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">rule</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #cc00cc;">gt&#45;one</span>
+    <span style="color: #006699; font-weight: bold;">end case</span>
+<span style="color: #006699; font-weight: bold;">end induction</span>
+</span>
+```
 ---|---  
   
 In this case, the term `_: s n2 > n2` is unified with `n1 > n2`.  Thus, `n1` is actually "`s n2`".  This means that by unification, we are actually trying to prove `s s n2 > s n2`.  Fortunately, we have a rule for that.  If we let "`n`" be "`s n2`", we can easily apply the rule `gt-one` to produce the desired result.
 
 The second case is a bit trickier.  We start out by defining the case rule according to the inference rules given in the judgment section.  The only case left is `gt-more`, so we mindlessly copy/paste and correct the variables to suit our needs:
 
-|  ``` case rule g1: n11 > n2  ------------- gt-more _: s n11 > n2 is _: s s n11 > s n2 by unproved end case ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">case rule</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">g1:</span><span style="color: #9966ff;"> </span>n11 > n2
+<span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;more</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n11 > n2
+<span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s s n11 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="background: #ffffcc; color: #ff0066;">unproved</span>
+<span style="color: #006699; font-weight: bold;">end case</span>
+</span>
+```
 ---|---  
   
 In this case, `n1` actually unifies with "`s n11`".  This is probably the most annoying aspect of SASyLF: all of the syntax is determined by token prefix, so _every_ number has to start with `n`, occasionally making proofs a little difficult to follow.
 
 At this point, we need to derive `s s n11 > s n2`.  Since the left and right side of the `>` "operator" do not share a common sub-term, the only rule which could possibly help us is `gt-more`.  In order to apply this rule, we will somehow need to derive `s n11 > s n2` (remember, `gt-more` takes a known greater-than relationship and then tells us something about how the left-successor relates to the right).  We can reflect this "bottom-up" step towards a proof in the following way:
 
-|  ``` case rule g1: n11 > n2  ------------- gt-more _: s n11 > n2 is g: s n11 > s n2 by unproved _: s s n11 > s n2 by rule gt-more on g end case ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">case rule</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">g1:</span><span style="color: #9966ff;"> </span>n11 > n2
+<span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;more</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n11 > n2
+<span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">g:</span><span style="color: #9966ff;"> </span>s n11 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="background: #ffffcc; color: #ff0066;">unproved</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s s n11 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">rule</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #cc00cc;">gt&#45;more</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">g</span>
+<span style="color: #006699; font-weight: bold;">end case</span>
+</span>
+```
 ---|---  
   
 At this point, SASyLF will warn us about the `unproved`, but it will happily pass the rest of our theorem.  This technique for proof development is extremely handy in more complicated theorems.  The ability to find out whether or not your logic is sound even before it is complete can be very reassuring (in this way you can avoid chasing entirely down the wrong logical path).
 
 In order to make this whole thing work, we need to somehow prove `s n11 > s n2`.  Fortunately, we just so happen to be working on a theorem which could prove this if we could supply `n11 > n2`.  This fact is conveniently available with the label of "`g1`".  We feed this into the `induction hypothesis` to achieve our goal.  The final theorem looks like this:
 
-|  ``` theorem gt-implies-gt-succ: forall g: n1 > n2 exists s n1 > s n2 . _: s n1 > s n2 by induction on g: case rule ------------ gt-one _: s n2 > n2 is _: s s n2 > s n2 by rule gt-one end case case rule g1: n11 > n2  ------------- gt-more _: s n11 > n2 is g2: s n11 > s n2 by induction hypothesis on g1 _: s s n11 > s n2 by rule gt-more on g2 end case end induction end theorem ```   
+|  
+
+```
+<span style="color: #000000;"><span style="color: #006699; font-weight: bold;">theorem</span> <span style="color: #9900cc;">gt&#45;implies&#45;gt&#45;succ:</span>
+    <span style="color: #009966; font-weight: bold;">forall</span><span style="color: #009966; font-weight: bold;"> </span><span style="color: #9966ff;">g:</span> n1 > n2
+    <span style="color: #009966; font-weight: bold;">exists</span> s n1 > s n2 <span style="color: #000000; font-weight: bold;">.</span>
+    
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n1 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">induction</span><span style="color: #9966ff;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">g:</span>
+        <span style="color: #006699; font-weight: bold;">case rule</span>
+<span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;one</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n2 > n2
+        <span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s s n2 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">rule</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #cc00cc;">gt&#45;one</span>
+        <span style="color: #006699; font-weight: bold;">end case</span>
+        
+        <span style="color: #006699; font-weight: bold;">case rule</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">g1:</span><span style="color: #9966ff;"> </span>n11 > n2
+<span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">    </span><span style="color: #cc00cc;">&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;&#45;</span><span style="color: #cc00cc;"> </span><span style="color: #cc00cc;">gt&#45;more</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s n11 > n2
+        <span style="color: #006699; font-weight: bold;">is</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">g2:</span><span style="color: #9966ff;"> </span>s n11 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">induction hypothesis</span><span style="color: #9966ff;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">g1</span>
+<span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">    </span><span style="color: #9966ff;">_:</span><span style="color: #9966ff;"> </span>s s n11 > s n2 <span style="color: #000000; font-weight: bold;">by</span><span style="color: #000000; font-weight: bold;"> </span><span style="color: #0099ff; font-weight: bold;">rule</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #cc00cc;">gt&#45;more</span><span style="color: #0099ff; font-weight: bold;"> </span><span style="color: #000000; font-weight: bold;">on </span><span style="color: #9966ff;">g2</span>
+        <span style="color: #006699; font-weight: bold;">end case</span>
+    <span style="color: #006699; font-weight: bold;">end induction</span>
+<span style="color: #006699; font-weight: bold;">end theorem</span>
+</span>
+```
 ---|---  
   
 ### Conclusion

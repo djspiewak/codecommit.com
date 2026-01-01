@@ -12,7 +12,12 @@ This is a post I have been meaning to write for quite some time. Despite being a
 
 In a nutshell, _WhatLanguage_ ([project page](<http://github.com/peterc/whatlanguage/tree/master>) at GitHub) is a statistical language identification API which analyses arbitrary input `String`(s), scoring them against a set of built-in languages (including English, French, Spanish, Russian, and others). Add to that a little bit of meta-programming magic and the possibilities are eye-catching to say the least:
 
-```ruby require 'whatlanguage' 'Here is some text to identify'.language # => :english '¿Hola, pero donde está su pelo?'.language # => :spanish ``` 
+```ruby
+require 'whatlanguage'
+
+'Here is some text to identify'.language       # => :english
+'¿Hola, pero donde está su pelo?'.language     # => :spanish
+```
 
 To be honest, I'm not sure what practical application I would have for such a library, but it sure looks like fun! :-) Under the surface, the implementation is deceptively simple. _WhatLanguage_ bundles a set of words for each language it supports. The implementation then searches these sets for each word in the string, aggregating a score for each language depending on whether or not the word was found. If exactly one language has a higher score than the others once the end of the string is reached, it is "declared the winner" and returned as a result. Otherwise, the analysis is undecided and `nil` is returned. Simple, right?
 
@@ -61,7 +66,22 @@ This is actually where the whole saga of persistent vectors in Scala found its r
 
 With a persistent vector now [at our disposal](<http://www.codecommit.com/blog/misc/implementing-persistent-vectors-in-scala/final/Vector.scala>), we can easily implement a persistent bloom filter by using a vector to represent our boolean indexes. Every time we perform an insertion, we will "modify" the relevant indexes, creating a new instance of the vector. This vector can then be used in our "modified" bloom filter, returned as a new instance of our container class. Since persistent vectors share unmodified structure between versions, so does our bloom filter. All of the hard work of efficient immutability is already done for us, we just need to implement a thin facade. We start out by defining the class skeleton:
 
-```scala import BloomSet._ class BloomSet[A] private (val size: Int, val k: Int, private val contents: Vector[Boolean]) extends ((A)=>Boolean) { val width = contents.length def this(width: Int, k: Int) = this(0, k, alloc(width)) } object BloomSet { def alloc(size: Int) = { (0 until size).foldLeft(Vector[Boolean]()) { (c, i) => c + false } } } ``` 
+```scala
+import BloomSet._
+
+class BloomSet[A] private (val size: Int, val k: Int, 
+                           private val contents: Vector[Boolean]) extends ((A)=>Boolean) {
+  val width = contents.length
+  
+  def this(width: Int, k: Int) = this(0, k, alloc(width))
+}
+
+object BloomSet {
+  def alloc(size: Int) = {
+    (0 until size).foldLeft(Vector[Boolean]()) { (c, i) => c + false }
+  }
+}
+```
 
 We'll keep all of our utility functions in the companion object. There's really no need to put them in the main class, and the JVM is able to optimize dispatch to static members to a slightly higher degree than it can instance members (`invokestatic`). Technically, we don't really _need_ the `alloc` function, it just hides some of the boiler-plate involved in initializing a vector to a certain length. Note that this operation is extremely fast, even for high values of _width_. Despite the fact that we are creating a huge number of `Vector` objects, very little memory is actually wasted. Even at this early stage in the implementation, the advantages of persistence are evident.
 
@@ -87,13 +107,38 @@ As an interesting aside, we can actually compute the accuracy of a bloom filter 
 
 Thanks to the marvels of approximation, this is a fairly efficient computation on modern platforms. Translated into Scala, it looks something like this:
 
-```scala lazy val accuracy = { val exp = ((k:Double) * size) / width val probability = Math.pow(1 - Math.exp(-exp), k) 1d - probability } ``` 
+```scala
+lazy val accuracy = {
+  val exp = ((k:Double) * size) / width
+  val probability = Math.pow(1 - Math.exp(-exp), k)
+  
+  1d - probability
+}
+```
 
 #### Core Functionality
 
 As interesting as this minor detour has been, we still haven't arrived at a working implementation of the bloom filter data structure. We have the basic structure in place, but we still need to implement the two core operations: insert and search, rendered in Scala as `+` and `contains`:
 
-```scala def +(e: A) = new BloomSet[A](size + 1, k, add(contents)(e)) def contains(e: A) = { (0 until k).foldLeft(true) { (acc, i) => acc && contents(hash(e, i, width)) } } protected def add(contents: Vector[Boolean])(e: Any) = { var back = contents for (i <\- 0 until k) { back = back(hash(e, i, width)) = true } back } ``` 
+```scala
+def +(e: A) = new BloomSet[A](size + 1, k, add(contents)(e))
+
+def contains(e: A) = {
+  (0 until k).foldLeft(true) { (acc, i) => 
+    acc && contents(hash(e, i, width)) 
+  }
+}
+
+protected def add(contents: Vector[Boolean])(e: Any) = {
+  var back = contents
+  
+  for (i <- 0 until k) {
+    back = back(hash(e, i, width)) = true
+  }
+  
+  back
+}
+```
 
 Feels sort of anti-climactic doesn't it? After all that analysis, we find that it is possible to implement the essence of a bloom filter in less than 17 lines of code. Technically, I probably could trim this down to more like 8 lines, but this isn't an exercise in Scala golf. These three methods are just the materialization of all of the hand-wavy descriptions that we've spent the last five pages working through. Each time we insert an element, we calculate _k_ different hash values and set the appropriate vector indexes to true. To find that element, we calculate the same _k_ hashes and ensure that all of the indexes have an appropriate boolean value.
 
@@ -107,7 +152,14 @@ A better approach would be to create a single hash function and then skew its va
 
 To avoid this problem, we should be sure to skew the hash value by a different amount for each hash function. A convenient way of doing this is to use the number of iterations, or the index of the particular hash function. To further improve the distribution, we will also use the bitwise XOR operation rather than simple addition. It's not really intuitively obvious, but XOR is mathematically far superior for hashing and just as cheap in terms of processor cycles. Put it all together, and the implementation looks something like this:
 
-```scala def hash(e: Any, iters: Int, bounds: Int): Int = { Math.abs( if (iters == 0) e.hashCode else iters ^ hash(e, iters - 1, bounds) ) % bounds } ``` 
+```scala
+def hash(e: Any, iters: Int, bounds: Int): Int = {
+  Math.abs(
+    if (iters == 0) e.hashCode 
+    else iters ^ hash(e, iters - 1, bounds)
+    ) % bounds
+}
+```
 
 The final bit of math in this function mods our skewed hash value with the given bounds. Whenever we call hash, we always pass the _width_ of the bloom filter. This is a trick that you'll see a lot in any hash-based data structure. Essentially, we're just mapping our hash value into the required domain. Hash values can be anything between -231 and 231 \- 1, but our vector indexes can only be between 0 and _width_ \- 1. Just a rule of thumb, but any time you have a problem where you must "map values from a large domain to a more restricted one", mod is generally the correct approach.
 
@@ -123,7 +175,79 @@ Fortunately, there is a fairly obvious format which we could use to efficiently 
 
 In addition to the array, we also need to store the _size_ , _k_ , and _width_ of the bloom filter, otherwise it will be impossible to find anything reliably in the deserialized result. The Scala `store` and `load` methods to accomplish this are verbose, but fairly straightforward:
 
-```scala class BloomSet[A] ... { ... def store(os: OutputStream) { os.write(convertToBytes(size)) os.write(convertToBytes(k)) os.write(convertToBytes(contents.length)) var num = 0 var card = 0 for (b <\- contents) { num = (num << 1) | (if (b) 1 else 0) // construct mask card += 1 if (card == 8) { os.write(num) num = 0 card = 0 } } if (card != 0) { os.write(num) } } } object BloomSet { def load[A](is: InputStream) = { val buf = new Array[Byte](4) is.read(buf) val size = convertToInt(buf) is.read(buf) val k = convertToInt(buf) is.read(buf) val width = convertToInt(buf) var contents = Vector[Boolean]() for (_ <\- 0 until (width / 8)) { var num = is.read() var buf: List[Boolean] = Nil for (_ <\- 0 until 8) { buf = ((num & 1) == 1) :: buf num >>= 1 } contents = contents ++ buf } if (width % 8 != 0) { var buf: List[Boolean] = Nil var num = is.read() for (_ <\- 0 until (width % 8)) { buf = ((num & 1) == 1) :: buf num >>= 1 } contents = contents ++ buf } new BloomSet[A](size, k, contents) } ... } ``` 
+```scala
+class BloomSet[A] ... {
+  ...
+
+  def store(os: OutputStream) {
+    os.write(convertToBytes(size))
+    os.write(convertToBytes(k))
+    os.write(convertToBytes(contents.length))
+    
+    var num = 0
+    var card = 0
+    for (b <- contents) {
+      num = (num << 1) | (if (b) 1 else 0)    // construct mask
+      card += 1
+      
+      if (card == 8) {
+        os.write(num)
+        
+        num = 0
+        card = 0
+      }
+    }
+    
+    if (card != 0) {
+      os.write(num)
+    }
+  }
+}
+
+object BloomSet {
+  def load[A](is: InputStream) = {
+    val buf = new Array[Byte](4)
+    
+    is.read(buf)
+    val size = convertToInt(buf)
+    
+    is.read(buf)
+    val k = convertToInt(buf)
+    
+    is.read(buf)
+    val width = convertToInt(buf)
+    
+    var contents = Vector[Boolean]()
+    for (_ <- 0 until (width / 8)) {
+      var num = is.read()
+      var buf: List[Boolean] = Nil
+      
+      for (_ <- 0 until 8) {
+        buf = ((num & 1) == 1) :: buf
+        num >>= 1
+      }
+      
+      contents = contents ++ buf
+    }
+    
+    if (width % 8 != 0) {
+      var buf: List[Boolean] = Nil
+      var num = is.read()
+      
+      for (_ <- 0 until (width % 8)) {
+        buf = ((num & 1) == 1) :: buf
+        num >>= 1
+      }
+      
+      contents = contents ++ buf
+    }
+    
+    new BloomSet[A](size, k, contents)
+  }
+
+  ...
+}
+```
 
 It is interesting to note that `store` is a good example of what David MacIver meant when he says that [functional code ![image](/assets/images/blog/wp-content/uploads/2008/10/image2.png) good code](<http://www.drmaciver.com/2008/08/functional-code-not-equal-good-code/>). I actually tried to write this in a functional style to start with, but I gave up after it became horribly ugly (having four nested folds is never a good sign). The imperative rendering (in this case) is concise and elegant, one of the many advantages of a hybrid languages like Scala.
 
@@ -135,7 +259,43 @@ So now that we have our magic bloom filter ready and waiting, it's time to take 
 
 Of course, before we can _load_ the language bloom filters we need to first _store_ them, and we cannot store a bloom filter before it is generated. To that end, we need to create a simple Scala script (yes, a script) which reads in a file of newline-delimited words, inserts them all into an instance of `BloomSet` and then stores the result in a corresponding language file. Scala's scripting functionality is actually quite good, especially for a statically typed language, and really deserves some better recognition. The complete language generator script is as follows:
 
-```scala import com.codecommit.collection.BloomSet import java.io.{BufferedOutputStream, File, FileOutputStream} import scala.io.Source val WIDTH = 2000000 def computeK(lines: Int) = (((9:Double) * WIDTH) / ((13:Double) * lines)).intValue for (file <\- new File("wordlists").listFiles) { if (!file.isDirectory) { println(file.getName) println("==========================") val src = Source.fromFile(file) val count = src.getLines.foldLeft(0) { (i, line) => i + 1 } println(" Word count: " + count) val optimalK = computeK(count) val init = new BloomSet[String](WIDTH, Math.min(optimalK, 100)) println(" Optimal K: " + optimalK) println(" Actual K: " + init.k) val set = src.reset.getLines.foldLeft(init) { _ + _.trim } println(" Accuracy: " + set.accuracy) val os = new BufferedOutputStream( new FileOutputStream("src/main/resources/lang/" + file.getName)) set.store(os) os.close() println() } } ``` 
+```scala
+import com.codecommit.collection.BloomSet
+import java.io.{BufferedOutputStream, File, FileOutputStream}
+import scala.io.Source
+
+val WIDTH = 2000000
+
+def computeK(lines: Int) = (((9:Double) * WIDTH) / ((13:Double) * lines)).intValue
+
+for (file <- new File("wordlists").listFiles) {
+  if (!file.isDirectory) {
+    println(file.getName)
+    println("==========================")
+    
+    val src = Source.fromFile(file)
+    val count = src.getLines.foldLeft(0) { (i, line) => i + 1 }
+    println("  Word count: " + count)
+    
+    val optimalK = computeK(count)
+    val init = new BloomSet[String](WIDTH, Math.min(optimalK, 100))
+    
+    println("  Optimal K: " + optimalK)
+    println("  Actual K: " + init.k)
+    
+    val set = src.reset.getLines.foldLeft(init) { _ + _.trim }
+    
+    println("  Accuracy: " + set.accuracy)
+    
+    val os = new BufferedOutputStream(
+        new FileOutputStream("src/main/resources/lang/" + file.getName))
+    set.store(os)
+    os.close()
+    
+    println()
+  }
+}
+```
 
 I originally created this script using JRuby, thinking of course that it would be much easier to perform a simple, one-off task like this in a dynamically typed language. Interestingly enough, the JRuby version was about twice as long and actually took dramatically longer to run. By "dramatically" I mean on the order of _seventy times_ longer. The above Scala script takes just over 30 seconds to run on my machine using the [wordlists from WhatLanguage](<http://github.com/peterc/whatlanguage/tree/master/wordlists>) __. This stands in stark contrast to the 35 _minutes_ required for the JRuby script. Both scripts use the same underlying data structure to perform all the work (`BloomSet`), so it's really hard to claim that one implementation was fundamentally slower than the other. In short: JRuby does not seem terribly well-suited for computationally-intensive tasks, even when most of that computation is taking place in Java-land. Anyway...
 
@@ -145,7 +305,77 @@ I say "nominally" because such a miniscule improvement in bloom filter performan
 
 Just for the curious, the script produces the following output when run:
 
-``` dutch ========================== Word count: 222908 Optimal K: 6 Actual K: 6 Accuracy: 0.986554232499401 english ========================== Word count: 234936 Optimal K: 5 Actual K: 5 Accuracy: 0.9827068384240777 farsi ========================== Word count: 339747 Optimal K: 4 Actual K: 4 Accuracy: 0.9408664843803285 french ========================== Word count: 629569 Optimal K: 2 Actual K: 2 Accuracy: 0.7817441534106517 german ========================== Word count: 298729 Optimal K: 4 Actual K: 4 Accuracy: 0.9590696917792074 pinyin ========================== Word count: 399 Optimal K: 3470 Actual K: 100 Accuracy: 1.0 portuguese ========================== Word count: 386393 Optimal K: 3 Actual K: 3 Accuracy: 0.9148904670664727 russian ========================== Word count: 951830 Optimal K: 1 Actual K: 1 Accuracy: 0.6213162918878307 spanish ========================== Word count: 595946 Optimal K: 2 Actual K: 2 Accuracy: 0.7984358472107859 swedish ========================== Word count: 54818 Optimal K: 25 Actual K: 25 Accuracy: 0.9999999755910407 ``` 
+```
+dutch
+  ==========================
+    Word count: 222908
+    Optimal K: 6
+    Actual K: 6
+    Accuracy: 0.986554232499401
+  
+  english
+  ==========================
+    Word count: 234936
+    Optimal K: 5
+    Actual K: 5
+    Accuracy: 0.9827068384240777
+  
+  farsi
+  ==========================
+    Word count: 339747
+    Optimal K: 4
+    Actual K: 4
+    Accuracy: 0.9408664843803285
+  
+  french
+  ==========================
+    Word count: 629569
+    Optimal K: 2
+    Actual K: 2
+    Accuracy: 0.7817441534106517
+  
+  german
+  ==========================
+    Word count: 298729
+    Optimal K: 4
+    Actual K: 4
+    Accuracy: 0.9590696917792074
+  
+  pinyin
+  ==========================
+    Word count: 399
+    Optimal K: 3470
+    Actual K: 100
+    Accuracy: 1.0
+  
+  portuguese
+  ==========================
+    Word count: 386393
+    Optimal K: 3
+    Actual K: 3
+    Accuracy: 0.9148904670664727
+  
+  russian
+  ==========================
+    Word count: 951830
+    Optimal K: 1
+    Actual K: 1
+    Accuracy: 0.6213162918878307
+  
+  spanish
+  ==========================
+    Word count: 595946
+    Optimal K: 2
+    Actual K: 2
+    Accuracy: 0.7984358472107859
+  
+  swedish
+  ==========================
+    Word count: 54818
+    Optimal K: 25
+    Actual K: 25
+    Accuracy: 0.9999999755910407
+```
 
 I'm not sure why [Pinyin](<http://en.wikipedia.org/wiki/Pinyin>) only has a vocabulary of 399 words, but that seems to be the way things are. This means of course that we're storing barely 400 elements in a bloom filter with a _width_ of 2,000,000. Needless to say, I wasn't surprised to see that the optimal _k_ was in the mid thousands. Unfortunately, this is where our inefficient `hash` implementation comes back to bite us. I discovered that if I were to allow a _k_ value of 3470, even when only inserting 399 elements, the time required to process just the single language was upwards of 20 minutes. This may have something to do with the fact that 34702 is very, very large.
 
@@ -155,17 +385,116 @@ To get around this problem, I cheat and cap the _k_ value at 100 in the script. 
 
 Now that we have our word lists encoded as bloom filters, we can turn our attention to slightly more important problems; specifically: what do we want the API to look like? I decided to base my Scala implementation primarily on Peter's Ruby API. However, there is one small wrinkle in this plan: _WhatLanguage_ uses symbols for everything. That's fine and in line with Ruby idioms, and technically we could use Scala symbols if we really wanted to, but Scala is a statically typed language with a lot of powerful idioms of its own. It would be a lot more conventional if we found a type-safe way of representing the same concepts. To that end, I decided to go with a similar (but not identical) approach as exemplified in the following code snippet:
 
-```scala import com.codecommit.lang._ "Hello, this is a test".language // => english val wl = new WhatLanguage(english, french, spanish) val text = "Bonjour, my name is Daniel. Estoy bien. Como estas? Êtes-vous ennuyer?" wl.processText(text) // => Map(English -> 4, French -> 5, Spanish -> 6) ``` 
+```scala
+import com.codecommit.lang._
+
+"Hello, this is a test".language       // => english
+
+val wl = new WhatLanguage(english, french, spanish)
+val text = "Bonjour, my name is Daniel. Estoy bien. Como estas? Êtes-vous ennuyer?"
+
+wl.processText(text)   // => Map(English -> 4, French -> 5, Spanish -> 6)
+```
 
 The neat trick of the day is our use of static values in scope as a form of type-safe symbol. We create a new instance of `WhatLanguage`, passing it three instances of class `Language` representing (oddly enough) the languages we wish it to use during the analysis. We can also use "`all`" as a shortcut for enumerating every supported language.
 
 Another cute little API feature is our use of the `lang` "package" to bring everything into scope, including two implicit conversions and a small boat-load of language values. This is made possible by the fact that `lang` is not actually a package but a singleton object. Even Scala does not allow values and functions as top-level elements in a package, but it does allow them within objects. Our import at the head of the snippet is actually equivalent to the following bit of Java:
 
-```java import static com.codecommit.lang.*; ``` 
+```java
+import static com.codecommit.lang.*;
+```
 
 With all of this in mind, the rest of the library is fairly easy to create. All we need to do is design an algorithm which splits an input string into tokens, loops over each one keeping track of how many tokens are matched by each language, and finally selects the highest-scoring language from the result and returns its corresponding static value. As one would expect, this is easily accomplished:
 
-```scala package com.codecommit import java.io.BufferedInputStream import com.codecommit.collection.BloomSet import scala.collection.mutable.ArrayBuffer object lang { case object all extends Language("all") { val langs = List(dutch, english, farsi, french, german, pinyin, portuguese, spanish, swedish) override lazy val words = BloomSet[String]() override val toString = "All languages meta-variable" } val dutch = Language("dutch") val english = Language("english") val farsi = Language("farsi") val french = Language("french") val german = Language("german") val pinyin = Language("pinyin") val portuguese = Language("portuguese") val russian = Language("russian") val spanish = Language("spanish") val swedish = Language("swedish") implicit def conversion(str: String) = new { val language = new WhatLanguage(all).language(str).getOrElse(null) } implicit def languageToString(lang: Language): String = lang.toString sealed case class Language private[lang] (file: String) { lazy val words = { val is = new BufferedInputStream(getClass.getResourceAsStream("/lang/" + file)) try { BloomSet.load[String](is) } finally is.close() } override val toString = file(0).toUpperCase + file.substring(1) override def equals(other: Any) = other match { case lang: Language => toString == lang.toString case _ => false } override val hashCode = file.hashCode } class WhatLanguage(langs: Language*) { def language(str: String) = { val back = new ArrayBuffer[Language] var max = 0 for ((lang, score) <\- processText(str)) { if (score > max) { back.clear back += lang max = score } else if (score == max) { back += lang } } if (back.length == 1) Some(back(0)) else None } def processText(str: String) = { val langs = if (this.langs.contains(all)) all.langs else this.langs val prime = langs.foldLeft(Map[Language, Int]()) { _(_) = 0 } str.split("""\s+""").foldLeft(prime) { (map, token) => langs.foldLeft(map) { (map, lang) => if (lang.words.contains(token.toLowerCase)) { map(lang) = map(lang) + 1 } else map } } } } } ``` 
+```scala
+package com.codecommit
+
+import java.io.BufferedInputStream
+import com.codecommit.collection.BloomSet
+
+import scala.collection.mutable.ArrayBuffer
+
+object lang {
+  case object all extends Language("all") {
+    val langs = List(dutch, english, farsi, french, german, pinyin, 
+                     portuguese, spanish, swedish)
+    
+    override lazy val words = BloomSet[String]()
+    
+    override val toString = "All languages meta-variable"
+  }
+  
+  val dutch = Language("dutch")
+  val english = Language("english")
+  val farsi = Language("farsi")
+  val french = Language("french")
+  val german = Language("german")
+  val pinyin = Language("pinyin")
+  val portuguese = Language("portuguese")
+  val russian = Language("russian")
+  val spanish = Language("spanish")
+  val swedish = Language("swedish")
+  
+  implicit def conversion(str: String) = new {
+    val language = new WhatLanguage(all).language(str).getOrElse(null)
+  }
+  
+  implicit def languageToString(lang: Language): String = lang.toString
+  
+  sealed case class Language private[lang] (file: String) {
+    lazy val words = {
+      val is = new BufferedInputStream(getClass.getResourceAsStream("/lang/" + file))
+      
+      try {
+        BloomSet.load[String](is)
+      } finally is.close()
+    }
+    
+    override val toString = file(0).toUpperCase + file.substring(1)
+    
+    override def equals(other: Any) = other match {
+      case lang: Language => toString == lang.toString
+      case _ => false
+    }
+    
+    override val hashCode = file.hashCode
+  }
+  
+  class WhatLanguage(langs: Language*) {
+    
+    def language(str: String) = {
+      val back = new ArrayBuffer[Language]
+      var max = 0
+      
+      for ((lang, score) <- processText(str)) {
+        if (score > max) {
+          back.clear
+          
+          back += lang
+          max = score
+        } else if (score == max) {
+          back += lang
+        }
+      }
+      
+      if (back.length == 1) Some(back(0)) else None
+    }
+    
+    def processText(str: String) = {
+      val langs = if (this.langs.contains(all)) all.langs else this.langs
+      val prime = langs.foldLeft(Map[Language, Int]()) { _(_) = 0 }
+      
+      str.split("""\s+""").foldLeft(prime) { (map, token) =>
+        langs.foldLeft(map) { (map, lang) =>
+          if (lang.words.contains(token.toLowerCase)) {
+            map(lang) = map(lang) + 1 
+          } else map
+        }
+      }
+    }
+  }
+}
+```
 
 ### Conclusion
 

@@ -12,7 +12,16 @@ There's been some [complaining](<http://creativekarma.com/ee.php/weblog/comments
 
 Developers with experience in dynamic languages such as Ruby or Python will know what I mean when I say that there comes a time when you stop worrying about _what_ type a value is and concern yourself more with _how_ you can use it.  For example, when I code in Ruby, I often write code like this:
 
-```ruby def operate(v) if v < "daniel" v += "spiewak" return value[0..(v.size - 7)] end v end ``` 
+```ruby
+def operate(v)
+  if v < "daniel"
+    v += "spiewak"
+    return value[0..(v.size - 7)]
+  end
+
+  v
+end
+```
 
 When I wrote this method, I wasn't necessarily thinking about _v_ as a _String_ , but rather as some value which defined the less-than operator against a _String_ , the + operator again taking a _String_ and the square brackets operator taking a _Range.   _I also never documented anywhere that this method expects a _String_.  I probably could document it that way, and many people would do so.  But really, all that needs to be documented is that the value passed to the method defines those three functions.
 
@@ -20,7 +29,22 @@ Scala enables the same sort of "duck typing" but adds static checking.  It has 
 
 Think about it.  How many times have you written code to use the _java.util.Map_ interface rather than _HashMap_ directly to avoid strongly coupling yourself to one _Map_ implementation?  In Java, one usually writes code like this:
 
-```java import java.util.Map; import java.util.HashMap; public class MapTest { private Map myMap; // using the interface type public MapTest() { myMap = createMap(); } public Map createMap() { return new HashMap(); } } ``` 
+```java
+import java.util.Map;
+import java.util.HashMap;
+
+public class MapTest {
+    private Map<Integer, String> myMap;    // using the interface type
+
+    public MapTest() {
+        myMap = createMap();
+    }
+
+    public Map<Integer, String> createMap() {
+        return new HashMap<Integer, String>();
+    }
+}
+```
 
 Granted, needlessly verbose, but not too far off the mark when it comes to Java design patterns.  This code makes it fairly trivial to change the underlying map implementation used throughout the class.  The implementation can even be changed by a subclass if it overrides the _createMap()_ method.
 
@@ -28,7 +52,15 @@ In this code, we're specifying semantically what sort of operations we need.  W
 
 Scala avoids this problem with type inference.  Type inference is inherently "loose typing" because it's constraining the type based on the value which defines it.  Translating the Java sample into Scala yields the following:
 
-```scala import scala.collection.mutable.HashMap class MapTest { var myMap = createMap() def createMap() = new HashMap[Int, String] } ``` 
+```scala
+import scala.collection.mutable.HashMap
+
+class MapTest {
+  var myMap = createMap()
+
+  def createMap() = new HashMap[Int, String]
+}
+```
 
 The _myMap_ variable is actually of type _HashMap,_ and the compiler knows and enforces this.  However, we can change the return value from _createMap()_ and it will be immediately reflected in the type of _myMap_.  Thus there is no need to type the variable against its superinterface, since the flexibility we want is already available through type inference.
 
