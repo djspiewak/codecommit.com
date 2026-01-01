@@ -187,6 +187,31 @@ laika.title = "Blog"
           .drain
       }
 
+  // Update relative paths in HTML to add an extra "../" prefix
+  // since the file moves one directory deeper (foo.html -> foo/index.html)
+  // Also convert .html links to clean URLs (foo.html -> foo/)
+  def fixRelativePaths(content: String): String =
+    // Match href="..." or src="..." with relative paths (not starting with /, http, https, #, or data:)
+    val pattern = """((?:href|src)=")([^"/][^"]*)(")""".r
+    pattern.replaceAllIn(content, m => {
+      val attr = m.group(1)
+      val path = m.group(2)
+      val quote = m.group(3)
+      // Skip absolute URLs, anchors, data URIs, and mailto/tel links
+      if path.startsWith("http:") || path.startsWith("https:") ||
+         path.startsWith("#") || path.startsWith("data:") ||
+         path.startsWith("mailto:") || path.startsWith("tel:") then
+        java.util.regex.Matcher.quoteReplacement(m.matched)
+      else
+        // Convert .html links to clean URLs, except index.html
+        val cleanPath =
+          if path.endsWith(".html") && !path.endsWith("index.html") then
+            path.stripSuffix(".html") + "/"
+          else
+            path
+        java.util.regex.Matcher.quoteReplacement(s"$attr../$cleanPath$quote")
+    })
+
   // Convert slug.html to slug/index.html for clean URLs
   def convertToCleanUrls(dir: Path): IO[Unit] =
     Files[IO].walk(dir)
@@ -197,8 +222,13 @@ laika.title = "Blog"
         val baseName = htmlFile.fileName.toString.stripSuffix(".html")
         val newDir = htmlFile.parent.map(_ / baseName).getOrElse(Path(baseName))
         val newFile = newDir / "index.html"
-        Files[IO].createDirectories(newDir) *>
-          Files[IO].move(htmlFile, newFile, CopyFlags(CopyFlag.ReplaceExisting))
+        for
+          content <- Files[IO].readUtf8(htmlFile).compile.foldMonoid
+          fixedContent = fixRelativePaths(content)
+          _ <- Files[IO].createDirectories(newDir)
+          _ <- Stream.emit(fixedContent).through(fs2.text.utf8.encode).through(Files[IO].writeAll(newFile)).compile.drain
+          _ <- Files[IO].delete(htmlFile)
+        yield ()
       }
       .compile
       .drain
