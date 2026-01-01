@@ -3,6 +3,7 @@
 //> using dep org.typelevel::cats-effect:3.6.3
 //> using dep org.http4s::http4s-ember-server:0.23.33
 //> using dep co.fs2::fs2-io:3.12.2
+//> using javaOpt --enable-native-access=ALL-UNNAMED
 
 import cats.effect.*
 import cats.syntax.all.*
@@ -22,89 +23,93 @@ import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
 import com.comcast.ip4s.*
 import java.time.LocalDate
-import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
-import java.nio.charset.StandardCharsets
+import java.lang.foreign.*
+import java.lang.invoke.MethodHandle
 import cats.data.NonEmptySet
 
 object Build extends IOApp:
 
-  // Path to the syntect-based highlighter binary
-  val highlighterBin = "highlighter/target/release/highlighter"
+  // Path to the syntect-based highlighter library
+  val highlighterLib = java.nio.file.Path.of("highlighter/target/release/libhighlighter.dylib")
 
   def escapeHtml(s: String): String =
     s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-  // Escape for JSON string value
-  def jsonEscape(s: String): String =
-    s.replace("\\", "\\\\")
-      .replace("\"", "\\\"")
-      .replace("\n", "\\n")
-      .replace("\r", "\\r")
-      .replace("\t", "\\t")
-
-  // Long-running highlighter process wrapper
-  class Highlighter extends AutoCloseable:
-    private val process = new ProcessBuilder(highlighterBin).start()
-    private val writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream, StandardCharsets.UTF_8))
-    private val reader = new BufferedReader(new InputStreamReader(process.getInputStream, StandardCharsets.UTF_8))
+  // FFI highlighter using Java FFM
+  class Highlighter private[Build] (
+    handle: MemorySegment,
+    freeFn: MethodHandle,
+    highlightFn: MethodHandle,
+    freeStringFn: MethodHandle
+  ):
+    private def free(): Unit = freeFn.invoke(handle)
 
     def highlight(language: String, code: String): String =
-      synchronized {
-        // Send JSON request
-        val request = s"""{"language":"${jsonEscape(language)}","code":"${jsonEscape(code)}"}"""
-        writer.write(request)
-        writer.newLine()
-        writer.flush()
-
-        // Read JSON response
-        val response = reader.readLine()
-        if response == null then
+      // Allocate C strings in a confined arena for this call
+      val callArena = Arena.ofConfined()
+      try
+        val langPtr = callArena.allocateFrom(language)
+        val codePtr = callArena.allocateFrom(code)
+        val resultPtr = highlightFn.invoke(handle, langPtr, codePtr).asInstanceOf[MemorySegment]
+        if resultPtr == MemorySegment.NULL then
           s"""<pre><code class="$language">${escapeHtml(code)}</code></pre>"""
         else
-          // Extract html field from {"html":"..."}
-          val htmlStart = response.indexOf("\"html\":\"") + 8
-          val htmlEnd = response.lastIndexOf("\"}")
-          if htmlStart > 7 && htmlEnd > htmlStart then
-            response.substring(htmlStart, htmlEnd)
-              .replace("\\n", "\n")
-              .replace("\\\"", "\"")
-              .replace("\\\\", "\\")
-          else
-            s"""<pre><code class="$language">${escapeHtml(code)}</code></pre>"""
-      }
+          val len = Highlighter.strlen.invoke(resultPtr).asInstanceOf[Long]
+          val html = resultPtr.reinterpret(len + 1).getString(0)
+          freeStringFn.invoke(resultPtr)
+          html
+      finally
+        callArena.close()
 
-    def close(): Unit =
-      writer.close()
-      reader.close()
-      process.destroy()
+  object Highlighter:
+    private val linker = Linker.nativeLinker()
+    private val lookup = SymbolLookup.libraryLookup(highlighterLib, Arena.global())
 
-  // Global highlighter instance (started lazily, used during build)
-  private var _highlighter: Highlighter = null
-  
-  def getHighlighter(): Highlighter =
-    synchronized {
-      if _highlighter == null then
-        _highlighter = new Highlighter()
-      _highlighter
-    }
-  
-  def closeHighlighter(): Unit =
-    synchronized {
-      if _highlighter != null then
-        _highlighter.close()
-        _highlighter = null
-    }
+    private val newFn = linker.downcallHandle(
+      lookup.find("highlighter_new").orElseThrow(),
+      FunctionDescriptor.of(ValueLayout.ADDRESS)
+    )
+
+    private val freeFn = linker.downcallHandle(
+      lookup.find("highlighter_free").orElseThrow(),
+      FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    )
+
+    private val highlightFn = linker.downcallHandle(
+      lookup.find("highlighter_highlight").orElseThrow(),
+      FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+    )
+
+    private val freeStringFn = linker.downcallHandle(
+      lookup.find("highlighter_free_string").orElseThrow(),
+      FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
+    )
+
+    private val strlen = linker.downcallHandle(
+      linker.defaultLookup().find("strlen").orElseThrow(),
+      FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS)
+    )
+
+    val resource: Resource[IO, Highlighter] =
+      Resource.make(
+        IO {
+          val handle = newFn.invoke().asInstanceOf[MemorySegment]
+          if handle == MemorySegment.NULL then
+            throw new RuntimeException("Failed to create highlighter")
+          new Highlighter(handle, freeFn, highlightFn, freeStringFn)
+        }
+      )(h => IO(h.free()))
 
   // Extension bundle for syntect highlighting using render overrides
-  object SyntectHighlighting extends ExtensionBundle:
+  class SyntectHighlighting(highlighter: Highlighter) extends ExtensionBundle:
     val description = "Syntect-based syntax highlighting"
-    
+
     override def renderOverrides: Seq[RenderOverrides] = Seq(
       HTML.Overrides {
         case (_, cb: CodeBlock) =>
           val language = cb.language
           val code = cb.extractText
-          getHighlighter().highlight(language, code)
+          highlighter.highlight(language, code)
       }
     )
 
@@ -216,11 +221,11 @@ laika.title = "Blog"
   // Use lenient message handling - don't fail on warnings/errors, don't render them
   val lenientFilters = MessageFilters.custom(MessageFilter.None, MessageFilter.None)
 
-  val transformer = Transformer
+  def transformer(highlighter: Highlighter) = Transformer
     .from(Markdown)
     .to(HTML)
     .using(Markdown.GitHubFlavor)
-    .using(SyntectHighlighting)
+    .using(SyntectHighlighting(highlighter))
     .withRawContent
     .withMessageFilters(lenientFilters)
     .parallel[IO]
@@ -229,12 +234,11 @@ laika.title = "Blog"
 
   def build: IO[Unit] =
     writeBlogIndex *>
-    transformer.use { t =>
+    Highlighter.resource.flatMap(transformer).use { t =>
       t.fromDirectory("src")
         .toDirectory(outputDir)
         .transform
-    }.void *> convertToCleanUrls(Path(outputDir)) *>
-    IO(closeHighlighter())
+    }.void *> convertToCleanUrls(Path(outputDir))
 
   def serve(port: Port): IO[Unit] =
     val routes = Router("/" -> fileService[IO](FileService.Config(outputDir))).orNotFound
