@@ -18,12 +18,6 @@
 <body>
 
   <header id="top-bar">
-    <button id="nav-icon" aria-label="Toggle navigation">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
-
     <div class="branding">
       <a class="logo" href="@:target(/index.md)">
         <img src="@:target(/theme/code-commit.png)" alt="Code Commit"/>
@@ -42,7 +36,7 @@
       <img src="@:target(/theme/profile.jpg)" alt="Daniel Spiewak" class="profile-photo"/>
     </div>
     <div class="sidebar-bio">
-      <p>Daniel Spiewak is a software engineer based out of Chicago, IL. Over the years, he has worked with Scala, Java, Ruby, Go, Haskell, C/C++, SML, Clojure, and countless other languages, covering topics ranging from type theory, compiler and language design, globally distributed systems, JVM optimization, large-scale AI data infrastructure, data structures, OLAP and OLTP databases, mechanical sympathy, and much more. He currently spends most of his free time maintaining the Cats Effect project and continuing to push the boundaries of what is possible at the intersection of mathematical reasoning and highly scalable production implementations.</p>
+      <p><strong>Daniel Spiewak</strong> is a software engineer based out of Chicago, IL. Over the years, he has worked with Scala, Java, Ruby, Go, Haskell, C/C++, SML, Clojure, and countless other languages, covering topics ranging from type theory, compiler and language design, globally distributed systems, JVM optimization, large-scale AI data infrastructure, data structures, OLAP and OLTP databases, mechanical sympathy, and much more. He currently spends most of his free time maintaining the Cats Effect project and continuing to push the boundaries of what is possible at the intersection of mathematical reasoning and highly scalable production implementations.</p>
     </div>
     <nav class="sidebar-categories">
       <h3>Categories</h3>
@@ -65,12 +59,6 @@
 
   </div>
 
-  <script>
-    // Mobile navigation toggle
-    document.getElementById('nav-icon').addEventListener('click', function() {
-      document.getElementById('sidebar').classList.toggle('open');
-    });
-  </script>
 
 </body>
 </html>
