@@ -2,8 +2,12 @@
 //> using dep org.typelevel::laika-io:1.3.2
 //> using dep org.typelevel::cats-effect:3.6.3
 //> using dep org.http4s::http4s-ember-server:0.23.33
+//> using dep co.fs2::fs2-io:3.12.2
 
 import cats.effect.*
+import cats.syntax.all.*
+import fs2.Stream
+import fs2.io.file.{Files, Path, CopyFlag, CopyFlags}
 import laika.api.*
 import laika.format.*
 import laika.io.syntax.*
@@ -12,48 +16,49 @@ import laika.ast.Path.Root
 import laika.ast.*
 import laika.helium.Helium
 import laika.helium.config.*
+import laika.config.SyntaxHighlighting
 import org.http4s.ember.server.EmberServerBuilder
 import org.http4s.server.Router
 import org.http4s.server.staticcontent.*
 import com.comcast.ip4s.*
-import java.nio.file.{Files, Path as JPath, StandardCopyOption}
 import java.time.LocalDate
-import scala.jdk.CollectionConverters.*
-import scala.util.matching.Regex
 
 object Build extends IOApp:
 
   val outputDir = "_site"
-  val srcDir = JPath.of("src")
-  val blogDir = srcDir.resolve("blog")
+  val srcDir = Path("src")
+  val blogDir = srcDir / "blog"
 
   case class BlogPost(title: String, date: LocalDate, category: String, slug: String):
     def url: String = s"/blog/$category/$slug"  // Absolute path, clean URL
 
   // Parse a blog post file to extract metadata
-  def parsePost(file: JPath): Option[BlogPost] =
-    val content = Files.readString(file)
+  def parsePost(file: Path, content: String): Option[BlogPost] =
     val titlePattern = """laika\.title\s*=\s*"([^"]+)"""".r
     val datePattern = """laika\.metadata\.date\s*=\s*"(\d{4}-\d{2}-\d{2})"""".r
-    
+
     for
       titleMatch <- titlePattern.findFirstMatchIn(content)
       dateMatch <- datePattern.findFirstMatchIn(content)
     yield
       val title = titleMatch.group(1)
       val date = LocalDate.parse(dateMatch.group(1))
-      val category = file.getParent.getFileName.toString
-      val slug = file.getFileName.toString.stripSuffix(".md")
+      val category = file.parent.map(_.fileName.toString).getOrElse("")
+      val slug = file.fileName.toString.stripSuffix(".md")
       BlogPost(title, date, category, slug)
 
   // Scan blog directory for all posts
-  def scanPosts: IO[List[BlogPost]] = IO {
-    Files.walk(blogDir).iterator().asScala.toList
-      .filter(p => Files.isRegularFile(p) && p.toString.endsWith(".md"))
-      .filterNot(p => p.getFileName.toString == "index.md")
-      .flatMap(parsePost)
-      .sortBy(_.date)(Ordering[LocalDate].reverse)
-  }
+  def scanPosts: Stream[IO, BlogPost] =
+    Files[IO].walk(blogDir)
+      .filter(_.extName == ".md")
+      .filterNot(_.fileName.toString == "index.md")
+      .evalFilter(Files[IO].isRegularFile)
+      .flatMap { path =>
+        Files[IO].readUtf8(path)
+          .foldMonoid
+          .map(content => parsePost(path, content))
+          .unNone
+      }
 
   // Generate blog index markdown with raw HTML links
   def generateBlogIndex(posts: List[BlogPost]): String =
@@ -73,32 +78,39 @@ laika.title = "Blog"
       }.mkString("\n")
       yearHeader + links
     }.mkString("\n\n")
-    
+
     header + postList + "\n"
 
   // Write blog index before build
   def writeBlogIndex: IO[Unit] =
-    scanPosts.flatMap { posts =>
-      IO {
-        val indexContent = generateBlogIndex(posts)
-        Files.writeString(blogDir.resolve("index.md"), indexContent)
+    scanPosts
+      .compile
+      .toList
+      .map(_.sortBy(_.date)(Ordering[LocalDate].reverse))
+      .map(generateBlogIndex)
+      .flatMap { indexContent =>
+        Stream.emit(indexContent)
+          .through(fs2.text.utf8.encode)
+          .through(Files[IO].writeAll(blogDir / "index.md"))
+          .compile
+          .drain
       }
-    }
 
   // Convert slug.html to slug/index.html for clean URLs
-  def convertToCleanUrls(dir: JPath): IO[Unit] = IO {
-    Files.walk(dir).iterator().asScala.toList
-      .filter(p => Files.isRegularFile(p) && p.toString.endsWith(".html"))
-      .filterNot(p => p.getFileName.toString == "index.html")
-      .foreach { htmlFile =>
-        val fileName = htmlFile.getFileName.toString
-        val baseName = fileName.stripSuffix(".html")
-        val newDir = htmlFile.getParent.resolve(baseName)
-        val newFile = newDir.resolve("index.html")
-        Files.createDirectories(newDir)
-        Files.move(htmlFile, newFile, StandardCopyOption.REPLACE_EXISTING)
+  def convertToCleanUrls(dir: Path): IO[Unit] =
+    Files[IO].walk(dir)
+      .filter(_.extName == ".html")
+      .evalFilter(Files[IO].isRegularFile)
+      .filterNot(_.fileName.toString == "index.html")
+      .evalMap { htmlFile =>
+        val baseName = htmlFile.fileName.toString.stripSuffix(".html")
+        val newDir = htmlFile.parent.map(_ / baseName).getOrElse(Path(baseName))
+        val newFile = newDir / "index.html"
+        Files[IO].createDirectories(newDir) *>
+          Files[IO].move(htmlFile, newFile, CopyFlags(CopyFlag.ReplaceExisting))
       }
-  }
+      .compile
+      .drain
 
   val helium = Helium.defaults
     .site.metadata(
@@ -124,6 +136,8 @@ laika.title = "Blog"
   val transformer = Transformer
     .from(Markdown)
     .to(HTML)
+    .using(Markdown.GitHubFlavor)
+    .using(SyntaxHighlighting)
     .withRawContent
     .withMessageFilters(lenientFilters)
     .parallel[IO]
@@ -136,7 +150,7 @@ laika.title = "Blog"
       t.fromDirectory("src")
         .toDirectory(outputDir)
         .transform
-    }.void *> convertToCleanUrls(JPath.of(outputDir))
+    }.void *> convertToCleanUrls(Path(outputDir))
 
   def serve(port: Port): IO[Unit] =
     val routes = Router("/" -> fileService[IO](FileService.Config(outputDir))).orNotFound
