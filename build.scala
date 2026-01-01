@@ -1,20 +1,25 @@
 //> using scala 3.3.4
 //> using dep org.typelevel::laika-io:1.3.2
 //> using dep org.typelevel::cats-effect:3.6.3
+//> using dep org.http4s::http4s-ember-server:0.23.33
 
 import cats.effect.*
 import laika.api.*
 import laika.format.*
-import laika.io.api.*
 import laika.io.syntax.*
 import laika.config.*
 import laika.ast.Path.Root
 import laika.ast.*
-import laika.theme.Theme
 import laika.helium.Helium
 import laika.helium.config.*
+import org.http4s.ember.server.EmberServerBuilder
+import org.http4s.server.Router
+import org.http4s.server.staticcontent.*
+import com.comcast.ip4s.*
 
-object Build extends IOApp.Simple:
+object Build extends IOApp:
+
+  val outputDir = "_site"
 
   val helium = Helium.defaults
     .site.metadata(
@@ -46,9 +51,29 @@ object Build extends IOApp.Simple:
     .withTheme(helium)
     .build
 
-  def run: IO[Unit] =
+  def build: IO[Unit] =
     transformer.use { t =>
       t.fromDirectory("src")
-        .toDirectory("_site")
+        .toDirectory(outputDir)
         .transform
     }.void
+
+  def serve(port: Port): IO[Unit] =
+    val routes = Router("/" -> fileService[IO](FileService.Config(outputDir))).orNotFound
+    EmberServerBuilder.default[IO]
+      .withHost(host"localhost")
+      .withPort(port)
+      .withHttpApp(routes)
+      .build
+      .useForever
+
+  def run(args: List[String]): IO[ExitCode] =
+    args match
+      case "serve" :: rest =>
+        val port = rest.headOption.flatMap(Port.fromString).getOrElse(port"4242")
+        build *>
+          IO.println(s"Serving site at http://localhost:$port") *>
+          IO.println("Press Ctrl+C to stop") *>
+          serve(port).as(ExitCode.Success)
+      case _ =>
+        build.as(ExitCode.Success)
