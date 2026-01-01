@@ -4,9 +4,11 @@
 //> using dep org.http4s::http4s-ember-server:0.23.33
 //> using javaOpt --enable-native-access=ALL-UNNAMED
 
+import cats.data.NonEmptySet
 import cats.effect.*
 import cats.syntax.all.*
 import fs2.io.file.{Files, Path}
+import java.nio.file.{Path => JPath}
 import laika.api.*
 import laika.api.bundle.*
 import laika.format.*
@@ -24,6 +26,7 @@ import com.comcast.ip4s.*
 import java.time.LocalDate
 import java.lang.foreign.*
 import java.lang.invoke.MethodHandle
+import scala.util.Try
 
 object Build extends IOApp:
 
@@ -31,7 +34,7 @@ object Build extends IOApp:
   val highlighterLib =
     val os = System.getProperty("os.name").toLowerCase
     val ext = if os.contains("linux") then "so" else if os.contains("mac") then "dylib" else "dll"
-    java.nio.file.Path.of(s"highlighter/target/release/libhighlighter.$ext")
+    JPath.of(s"highlighter/target/release/libhighlighter.$ext")
 
   def escapeHtml(s: String): String =
     s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -132,7 +135,7 @@ object Build extends IOApp:
          |</div>""".stripMargin
 
     def block(date: LocalDate): RawContent =
-      RawContent(cats.data.NonEmptySet.of("html"), html(date))
+      RawContent(NonEmptySet.of("html"), html(date))
 
   // Extension bundle that adds a calendar date widget to blog posts
   object CalendarWidgetExtension extends ExtensionBundle:
@@ -150,7 +153,7 @@ object Build extends IOApp:
             // Try to get the date from document config
             val dateOpt = for
               dateStr <- cursor.config.get[String](Key("laika", "metadata", "date")).toOption
-              date <- scala.util.Try(LocalDate.parse(dateStr)).toOption
+              date <- Try(LocalDate.parse(dateStr)).toOption
             yield date
 
             dateOpt match
@@ -169,7 +172,6 @@ object Build extends IOApp:
 
   // Extension bundle providing blog directives
   class BlogDirectives(categories: Seq[Category]) extends DirectiveRegistry:
-    import laika.api.config.Key
 
     private val postsPerPage = 10
 
@@ -192,12 +194,12 @@ object Build extends IOApp:
         val calendarBlock = CalendarWidget.block(post.date)
         val linkPath = "/" + post.path.withSuffix("html").relative.toString.replace(".html", "/")
         val titleHtml = s"""<h2 class="blog-index-title"><a href="$linkPath">${escapeHtml(post.title)}</a></h2>"""
-        val titleBlock = RawContent(cats.data.NonEmptySet.of("html"), titleHtml)
-        val wrapperStart = RawContent(cats.data.NonEmptySet.of("html"), """<article class="blog-index-entry">""")
-        val bodyStart = RawContent(cats.data.NonEmptySet.of("html"), """<div class="blog-index-body">""")
-        val textStart = RawContent(cats.data.NonEmptySet.of("html"), """<div class="blog-index-body-text">""")
-        val textEnd = RawContent(cats.data.NonEmptySet.of("html"), """</div>""")
-        val bodyEnd = RawContent(cats.data.NonEmptySet.of("html"), """</div></article>""")
+        val titleBlock = RawContent(NonEmptySet.of("html"), titleHtml)
+        val wrapperStart = RawContent(NonEmptySet.of("html"), """<article class="blog-index-entry">""")
+        val bodyStart = RawContent(NonEmptySet.of("html"), """<div class="blog-index-body">""")
+        val textStart = RawContent(NonEmptySet.of("html"), """<div class="blog-index-body-text">""")
+        val textEnd = RawContent(NonEmptySet.of("html"), """</div>""")
+        val bodyEnd = RawContent(NonEmptySet.of("html"), """</div></article>""")
 
         val ellipsisSpan = SpanLink.internal(post.path)(Text(" …")).withStyle("read-more")
         val paragraphsWithEllipsis = if post.firstParagraphs.nonEmpty then
@@ -225,7 +227,7 @@ object Build extends IOApp:
               for
                 title <- doc.config.get[String](Key("laika", "title")).toOption
                 dateStr <- doc.config.get[String](Key("laika", "metadata", "date")).toOption
-                date <- scala.util.Try(LocalDate.parse(dateStr)).toOption
+                date <- Try(LocalDate.parse(dateStr)).toOption
               yield BlogPost(title, date, doc.path, extractParagraphs(doc.content))
             else
               None
@@ -258,7 +260,7 @@ object Build extends IOApp:
             s"""<nav class="pagination">$prevLink $pageLinks $nextLink</nav>"""
           else ""
 
-          val paginationBlock = RawContent(cats.data.NonEmptySet.of("html"), paginationHtml)
+          val paginationBlock = RawContent(NonEmptySet.of("html"), paginationHtml)
           BlockSequence(postBlocks :+ paginationBlock)
         }
       },
@@ -275,7 +277,7 @@ object Build extends IOApp:
               for
                 title <- doc.config.get[String](Key("laika", "title")).toOption
                 dateStr <- doc.config.get[String](Key("laika", "metadata", "date")).toOption
-                date <- scala.util.Try(LocalDate.parse(dateStr)).toOption
+                date <- Try(LocalDate.parse(dateStr)).toOption
               yield BlogPost(title, date, doc.path, extractParagraphs(doc.content))
             else
               None
