@@ -33,7 +33,7 @@
   /* Layout */
   --top-bar-height: 60px;
   --sidebar-width: 280px;
-  --content-max-width: 750px;
+  --content-max-width: 1000px;
   --block-spacing: 20px;
   
   /* Typography - matching Helium's font stack */
@@ -246,7 +246,7 @@ main.content {
   display: block;
   max-width: var(--content-max-width);
   margin: 0 auto;
-  padding: 30px 45px 45px;
+  padding: 30px 22px 45px;
   min-height: 100vh;
 }
 
@@ -543,7 +543,7 @@ li.tab a {
   }
   
   main.content {
-    padding: 30px 30px;
+    padding: 30px 15px;
   }
 }
 
