@@ -15,6 +15,42 @@ fn html_escape(s: &str) -> String {
         .replace('>', "&gt;")
 }
 
+/// Map language tokens to display names for the badge.
+/// Falls back to the syntect-detected name if no override exists.
+fn language_display_name<'a>(token: &'a str, syntect_name: &'a str) -> &'a str {
+    match token.to_lowercase().as_str() {
+        "js" | "javascript" => "JavaScript",
+        "ts" | "typescript" => "TypeScript",
+        "rb" | "ruby" => "Ruby",
+        "py" | "python" => "Python",
+        "rs" | "rust" => "Rust",
+        "sh" | "bash" | "shell" => "Shell",
+        "cs" | "csharp" => "C#",
+        "cpp" | "c++" => "C++",
+        "md" | "markdown" => "Markdown",
+        "yml" | "yaml" => "YAML",
+        "hs" | "haskell" => "Haskell",
+        "ml" | "ocaml" => "OCaml",
+        "ex" | "elixir" => "Elixir",
+        "erl" | "erlang" => "Erlang",
+        "kt" | "kotlin" => "Kotlin",
+        "sc" | "scala" => "Scala",
+        "clj" | "clojure" => "Clojure",
+        "fs" | "fsharp" => "F#",
+        "go" | "golang" => "Go",
+        "java" => "Java",
+        "c" => "C",
+        "sql" => "SQL",
+        "html" => "HTML",
+        "css" => "CSS",
+        "xml" => "XML",
+        "json" => "JSON",
+        "toml" => "TOML",
+        "text" | "plaintext" | "plain text" => "Text",
+        _ => syntect_name,
+    }
+}
+
 /// Create a new highlighter instance. Returns null on failure.
 #[no_mangle]
 pub extern "C" fn highlighter_new() -> *mut Highlighter {
@@ -67,10 +103,20 @@ pub extern "C" fn highlighter_highlight(
 
     let theme = &highlighter.theme_set.themes["InspiredGitHub"];
 
-    let html = match highlighted_html_for_string(code, &highlighter.syntax_set, syntax, theme) {
+    // Get a display name for the language badge
+    let display_name = language_display_name(language, syntax.name.as_str());
+
+    let inner_html = match highlighted_html_for_string(code, &highlighter.syntax_set, syntax, theme) {
         Ok(h) => h,
         Err(_) => format!("<pre><code>{}</code></pre>", html_escape(code)),
     };
+
+    // Wrap in container with language badge
+    let html = format!(
+        r#"<div class="code-block"><span class="code-lang-badge">{}</span>{}</div>"#,
+        html_escape(display_name),
+        inner_html
+    );
 
     match CString::new(html) {
         Ok(cs) => cs.into_raw(),

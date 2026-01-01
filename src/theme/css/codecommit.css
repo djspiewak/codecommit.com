@@ -364,17 +364,47 @@ code {
   border-radius: 3px;
 }
 
+/* ===== Code Block Container ===== */
+.code-block {
+  position: relative;
+  margin: 1em 0;
+}
+
+.code-lang-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: var(--cream);
+  border: 1px solid #c0c0c0;
+  border-top: none;
+  border-right: none;
+  border-bottom-left-radius: 4px;
+  padding: 2px 8px;
+  font-family: var(--body-font);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  z-index: 1;
+}
+
 /* Override syntect's inline background-color style */
 pre {
   background-color: var(--code-bg) !important;
   border: 1px solid #c0c0c0;
   border-radius: 3px;
   padding: 1em 1.2em;
-  margin: 1em 0;
+  margin: 0;
   overflow-x: auto;
   font-family: var(--code-font) !important;
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+/* Pre inside code-block container needs no extra margin */
+.code-block pre {
+  margin: 0;
 }
 
 pre code {
