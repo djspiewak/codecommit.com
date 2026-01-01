@@ -594,6 +594,48 @@ li.tab a {
   }
 }
 
+/* ===== Calendar Date Widget ===== */
+.calendar-widget {
+  float: left;
+  width: 54px;
+  margin: 0 18px 9px 0;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-family: var(--body-font);
+  overflow: hidden;
+}
+
+.calendar-widget .calendar-day {
+  display: block;
+  background-color: var(--primary-color);
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 0;
+}
+
+.calendar-widget .calendar-month {
+  display: block;
+  color: var(--text-color);
+  font-size: 0.67rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 0 2px;
+}
+
+.calendar-widget .calendar-year {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0 0 5px;
+}
+
+
 /* ===== Print Styles ===== */
 @media print {
   #top-bar,

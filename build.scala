@@ -10,6 +10,7 @@ import laika.api.bundle.*
 import laika.format.*
 import laika.io.syntax.*
 import laika.config.*
+import laika.api.config.Key
 import laika.ast.Path.Root
 import laika.ast.*
 import laika.theme.Theme
@@ -110,6 +111,56 @@ object Build extends IOApp:
       }
     )
 
+  // Extension bundle that adds a calendar date widget to blog posts
+  object CalendarWidget extends ExtensionBundle:
+    val description = "Adds a calendar date widget to blog posts"
+
+    private val months = Vector(
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    )
+
+    override def rewriteRules: RewriteRules.RewritePhaseBuilder = {
+      case RewritePhase.Resolve =>
+        Seq { cursor =>
+          val docPath = cursor.path
+          val isBlogPost = docPath.isSubPath(Root / "blog") && docPath.basename != "index"
+
+          if !isBlogPost then
+            Right(RewriteRules.empty)
+          else
+            // Try to get the date from document config
+            val dateOpt = for
+              dateStr <- cursor.config.get[String](Key("laika", "metadata", "date")).toOption
+              date <- scala.util.Try(LocalDate.parse(dateStr)).toOption
+            yield date
+
+            dateOpt match
+              case Some(date) =>
+                val day = date.getDayOfMonth
+                val month = months(date.getMonthValue - 1)
+                val year = date.getYear
+
+                val calendarHtml = s"""<div class="calendar-widget">
+                  |  <span class="calendar-day">$day</span>
+                  |  <span class="calendar-month">$month</span>
+                  |  <span class="calendar-year">$year</span>
+                  |</div>""".stripMargin
+
+                val calendarBlock = RawContent(cats.data.NonEmptySet.of("html"), calendarHtml)
+
+                // Insert the calendar widget after the first H1 (title)
+                var inserted = false
+                Right(RewriteRules.forBlocks {
+                  case h: Header if h.level == 1 && !inserted =>
+                    inserted = true
+                    RewriteAction.Replace(BlockSequence(h, calendarBlock))
+                })
+              case None =>
+                Right(RewriteRules.empty)
+        }
+    }
+
   // Extension bundle providing the @:blogIndex directive
   object BlogIndexDirective extends DirectiveRegistry:
     import BlockDirectives.dsl.*
@@ -175,6 +226,7 @@ object Build extends IOApp:
     .using(Markdown.GitHubFlavor)
     .using(SyntectHighlighting(highlighter))
     .using(BlogIndexDirective)
+    .using(CalendarWidget)
     .using(PrettyURLs)
     .withRawContent
     .parallel[IO]
