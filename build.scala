@@ -114,14 +114,29 @@ object Build extends IOApp:
       }
     )
 
-  // Extension bundle that adds a calendar date widget to blog posts
-  object CalendarWidget extends ExtensionBundle:
-    val description = "Adds a calendar date widget to blog posts"
-
+  // Shared calendar widget HTML generation
+  object CalendarWidget:
     private val months = Vector(
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     )
+
+    def html(date: LocalDate): String =
+      val day = date.getDayOfMonth
+      val month = months(date.getMonthValue - 1)
+      val year = date.getYear
+      s"""<div class="calendar-widget">
+         |  <span class="calendar-day">$day</span>
+         |  <span class="calendar-month">$month</span>
+         |  <span class="calendar-year">$year</span>
+         |</div>""".stripMargin
+
+    def block(date: LocalDate): RawContent =
+      RawContent(cats.data.NonEmptySet.of("html"), html(date))
+
+  // Extension bundle that adds a calendar date widget to blog posts
+  object CalendarWidgetExtension extends ExtensionBundle:
+    val description = "Adds a calendar date widget to blog posts"
 
     override def rewriteRules: RewriteRules.RewritePhaseBuilder = {
       case RewritePhase.Resolve =>
@@ -140,24 +155,12 @@ object Build extends IOApp:
 
             dateOpt match
               case Some(date) =>
-                val day = date.getDayOfMonth
-                val month = months(date.getMonthValue - 1)
-                val year = date.getYear
-
-                val calendarHtml = s"""<div class="calendar-widget">
-                  |  <span class="calendar-day">$day</span>
-                  |  <span class="calendar-month">$month</span>
-                  |  <span class="calendar-year">$year</span>
-                  |</div>""".stripMargin
-
-                val calendarBlock = RawContent(cats.data.NonEmptySet.of("html"), calendarHtml)
-
                 // Insert the calendar widget after the first H1 (title)
                 var inserted = false
                 Right(RewriteRules.forBlocks {
                   case h: Header if h.level == 1 && !inserted =>
                     inserted = true
-                    RewriteAction.Replace(BlockSequence(h, calendarBlock))
+                    RewriteAction.Replace(BlockSequence(h, CalendarWidget.block(date)))
                 })
               case None =>
                 Right(RewriteRules.empty)
@@ -167,11 +170,6 @@ object Build extends IOApp:
   // Extension bundle providing blog directives
   class BlogDirectives(categories: Seq[Category]) extends DirectiveRegistry:
     import laika.api.config.Key
-
-    private val months = Vector(
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    )
 
     private val postsPerPage = 10
 
@@ -188,20 +186,10 @@ object Build extends IOApp:
         take
       }
 
-    private def calendarHtml(date: LocalDate): String =
-      val day = date.getDayOfMonth
-      val month = months(date.getMonthValue - 1)
-      val year = date.getYear
-      s"""<div class="calendar-widget">
-         |  <span class="calendar-day">$day</span>
-         |  <span class="calendar-month">$month</span>
-         |  <span class="calendar-year">$year</span>
-         |</div>""".stripMargin
-
     // Helper to generate post entry HTML blocks
     private def generatePostBlocks(posts: Vector[BlogPost]): Vector[Block] =
       posts.flatMap { post =>
-        val calendarBlock = RawContent(cats.data.NonEmptySet.of("html"), calendarHtml(post.date))
+        val calendarBlock = CalendarWidget.block(post.date)
         val linkPath = "/" + post.path.withSuffix("html").relative.toString.replace(".html", "/")
         val titleHtml = s"""<h2 class="blog-index-title"><a href="$linkPath">${escapeHtml(post.title)}</a></h2>"""
         val titleBlock = RawContent(cats.data.NonEmptySet.of("html"), titleHtml)
@@ -397,7 +385,7 @@ object Build extends IOApp:
     .using(Markdown.GitHubFlavor)
     .using(SyntectHighlighting(highlighter))
     .using(BlogDirectives(categories))
-    .using(CalendarWidget)
+    .using(CalendarWidgetExtension)
     .using(PrettyURLs)
     .withRawContent
     .parallel[IO]
